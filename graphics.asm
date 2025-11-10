@@ -1,325 +1,425 @@
-; ========================================
-; GRAPHICS.ASM - CORRIGIDO
-; Fun??es de desenho e manipula??o gr?fica
-; ========================================
+; ============================================
+; ARQUIVO: graphics.asm
+; Rotinas de v?deo e desenho (com Sprite Gen?rico)
+; ============================================
 
-; ===== LIMPA BUFFER =====
-LIMPA_BUFFER PROC NEAR
-    PUSH AX
-    PUSH CX
-    PUSH DI
-    PUSH ES
-    
-    MOV AX, SEG video_buffer
-    MOV ES, AX
-    MOV DI, OFFSET video_buffer
-    XOR AL, AL
-    MOV CX, 64000
-    REP STOSB
-    
-    POP ES
-    POP DI
-    POP CX
-    POP AX
-    RET
-LIMPA_BUFFER ENDP
+;-------------------------------------------------
+; setupVideoMode: Configura o modo gr?fico 13h
+;-------------------------------------------------
+setupVideoMode proc
+    mov ax, 0013h
+    int 10h
+    ret
+setupVideoMode endp
 
-; ===== COPIA BUFFER PARA V?DEO =====
-COPIA_BUFFER_VIDEO PROC NEAR
-    PUSH AX
-    PUSH CX
-    PUSH SI
-    PUSH DI
-    PUSH DS
-    PUSH ES
-    
-    ; DS:SI = buffer
-    MOV AX, SEG video_buffer
-    MOV DS, AX
-    MOV SI, OFFSET video_buffer
-    
-    ; ES:DI = v?deo
-    MOV AX, 0A000h
-    MOV ES, AX
-    XOR DI, DI
-    
-    ; Copiar 64000 bytes
-    MOV CX, 32000
-    CLD
-    REP MOVSW
-    
-    POP ES
-    POP DS
-    POP DI
-    POP SI
-    POP CX
-    POP AX
-    RET
-COPIA_BUFFER_VIDEO ENDP
+;-------------------------------------------------
+; clearBuffer: Limpa o buffer de v?deo
+;-------------------------------------------------
+clearBuffer proc
+    push ax
+    push cx
+    push di
+    xor di, di
+    xor al, al
+    mov cx, 64000
+    rep stosb
+    pop di
+    pop cx
+    pop ax
+    ret
+clearBuffer endp
 
-; ===== DESENHA PIXEL NO BUFFER =====
-; BX = X, DX = Y, AL = cor
-DESENHA_PIXEL_BUF PROC NEAR
-    PUSH AX
-    PUSH BX
-    PUSH DX
-    PUSH DI
-    PUSH ES
+;-------------------------------------------------
+; copyBufferToVideo: Copia o buffer para a tela
+;-------------------------------------------------
+copyBufferToVideo proc
+    push ds
+    push ax
+    push cx
+    push si
+    push di
+    push es
     
-    ; Verificar limites
-    CMP BX, 320
-    JAE FIM_PIXEL
-    CMP DX, 200
-    JAE FIM_PIXEL
+    mov ax, BUFFER_SEG
+    mov ds, ax
+    xor si, si
     
-    PUSH AX
-    MOV AX, SEG video_buffer
-    MOV ES, AX
-    POP AX
+    mov ax, 0A000h
+    mov es, ax
+    xor di, di
     
-    PUSH AX
-    ; Calcular offset: Y * 320 + X
-    MOV AX, DX
-    MOV CX, 320
-    MUL CX
-    ADD AX, BX
-    MOV DI, AX
-    ADD DI, OFFSET video_buffer
-    POP AX
+    mov cx, 32000
+    rep movsw
     
-    MOV ES:[DI], AL
-    
-FIM_PIXEL:
-    POP ES
-    POP DI
-    POP DX
-    POP BX
-    POP AX
-    RET
-DESENHA_PIXEL_BUF ENDP
+    pop es
+    pop di
+    pop si
+    pop cx
+    pop ax
+    pop ds
+    ret
+copyBufferToVideo endp
 
-; ===== DESENHA SPRITE 29x13 NO BUFFER =====
-; BX = X, DX = Y, SI = sprite, AL = cor
-DESENHA_SPRITE_BUF PROC NEAR
-    PUSH AX
-    PUSH BX
-    PUSH CX
-    PUSH DX
-    PUSH DI
-    PUSH SI
-    PUSH ES
-    PUSH BP
-    
-    MOV BP, AX              ; Salvar cor em BP (apenas BL ser? usado)
-    
-    ; Verificar limites b?sicos
-    CMP BX, 320
-    JAE FIM_SPRITE_BUF
-    CMP DX, 200
-    JAE FIM_SPRITE_BUF
-    
-    ; Configurar ES para buffer
-    PUSH DS
-    MOV AX, SEG video_buffer
-    MOV ES, AX
-    POP DS
-    
-    ; Calcular posi??o inicial: Y * 320 + X
-    MOV AX, DX
-    MOV CX, 320
-    MUL CX
-    ADD AX, BX
-    ADD AX, OFFSET video_buffer
-    MOV DI, AX
-    
-    ; Desenhar 13 linhas
-    MOV CX, 13
-    
-LOOP_LINHA_SPR:
-    PUSH CX
-    PUSH DI
-    PUSH BX
-    
-    ; Desenhar 29 pixels da linha
-    MOV CX, 29
-    
-LOOP_PIXEL_SPR:
-    ; Verificar limites horizontais
-    CMP BX, 320
-    JAE SKIP_PIXEL_SPR
-    
-    ; Carregar byte do sprite
-    LODSB
-    
-    ; Se for 0 (transparente), pular
-    CMP AL, 0
-    JE SKIP_PIXEL_SPR
-    
-    ; Desenhar pixel com a cor especificada
-    PUSH AX
-    MOV AX, BP
-    MOV ES:[DI], AL
-    POP AX
-    
-SKIP_PIXEL_SPR:
-    INC DI
-    INC BX
-    LOOP LOOP_PIXEL_SPR
-    
-    POP BX
-    POP DI
-    ADD DI, 320
-    POP CX
-    
-    INC DX
-    CMP DX, 200
-    JAE FIM_SPRITE_BUF
-    
-    LOOP LOOP_LINHA_SPR
-    
-FIM_SPRITE_BUF:
-    POP BP
-    POP ES
-    POP SI
-    POP DI
-    POP DX
-    POP CX
-    POP BX
-    POP AX
-    RET
-DESENHA_SPRITE_BUF ENDP
+;-------------------------------------------------
+; drawGenericSprite: Desenha sprite (com transpar?ncia) NO BUFFER
+; [bp+12] = PUSH X
+; [bp+10] = PUSH Y
+; [bp+8]  = PUSH offset
+; [bp+6]  = PUSH Largura
+; [bp+4]  = PUSH Altura
+;-------------------------------------------------
+drawGenericSprite proc
+    push bp
+    mov bp, sp
+    push ax
+    push bx
+    push cx
+    push si
+    push di
 
-; ===== DESENHA LINHA HORIZONTAL =====
-; BX = X, DX = Y, CX = comprimento, AL = cor
-DESENHA_LINHA_H_BUF PROC NEAR
-    PUSH AX
-    PUSH BX
-    PUSH CX
-    PUSH DX
-    PUSH DI
-    PUSH ES
-    
-    CMP DX, 200
-    JAE FIM_LINHA_H
-    CMP BX, 320
-    JAE FIM_LINHA_H
-    
-    ; Ajustar comprimento
-    PUSH AX
-    MOV AX, BX
-    ADD AX, CX
-    CMP AX, 320
-    POP AX
-    JBE COMP_OK_H
-    MOV CX, 320
-    SUB CX, BX
-COMP_OK_H:
-    
-    PUSH AX
-    MOV AX, SEG video_buffer
-    MOV ES, AX
-    POP AX
-    
-    ; Calcular offset
-    PUSH AX
-    MOV AX, DX
-    PUSH DX
-    MOV DX, 320
-    MUL DX
-    POP DX
-    ADD AX, BX
-    ADD AX, OFFSET video_buffer
-    MOV DI, AX
-    POP AX
-    
-    CLD
-    REP STOSB
-    
-FIM_LINHA_H:
-    POP ES
-    POP DI
-    POP DX
-    POP CX
-    POP BX
-    POP AX
-    RET
-DESENHA_LINHA_H_BUF ENDP
+    mov si, [bp+8] ; offset do sprite
 
-; ===== DESENHA RET?NGULO =====
-; BX = X, DX = Y, CX = largura, AL = altura (via pilha [BP+4]), AH = cor
-DESENHA_RETANGULO_BUF PROC NEAR
-    PUSH BP
-    MOV BP, SP
-    PUSH AX
-    PUSH BX
-    PUSH CX
-    PUSH DX
-    
-    MOV AL, BYTE PTR [BP+4]     ; Altura
-    MOV AH, 0
-    PUSH AX                     ; Salvar altura
-    
-LOOP_RET_LIN:
-    POP AX
-    CMP AL, 0
-    JE FIM_RET
-    PUSH AX
-    
-    PUSH AX
-    PUSH BX
-    PUSH CX
-    PUSH DX
-    
-    MOV AL, BYTE PTR [BP+6]     ; Cor
-    CALL DESENHA_LINHA_H_BUF
-    
-    POP DX
-    POP CX
-    POP BX
-    POP AX
-    
-    INC DX
-    DEC AL
-    PUSH AX
-    JMP LOOP_RET_LIN
-    
-FIM_RET:
-    POP DX
-    POP CX
-    POP BX
-    POP AX
-    POP BP
-    RET 2
-DESENHA_RETANGULO_BUF ENDP
+    mov ax, [bp+10] ; Y
+    mov bx, 320
+    mul bx
+    add ax, [bp+12] ; X
+    mov di, ax     
 
-; ===== DESENHA ESTRELAS =====
-; SI = array, CX = quantidade
-DESENHA_ESTRELAS_BUF PROC NEAR
-    PUSH AX
-    PUSH BX
-    PUSH CX
-    PUSH DX
-    PUSH SI
+    mov cx, [bp+4] ; Altura
+loopLinhaGenerica:
+    push cx
+    push di
     
-LOOP_EST:
-    MOV BX, [SI]
-    ADD SI, 2
-    MOV DX, [SI]
-    ADD SI, 2
+    mov cx, [bp+6] ; Largura
+loopPixelGenerico:
+    lodsb
+    cmp al, 0
+    je pularPixelGenerico
+    mov es:[di], al
+pularPixelGenerico:
+    inc di
+    loop loopPixelGenerico
     
-    MOV AL, 15
-    PUSH CX
-    PUSH SI
-    CALL DESENHA_PIXEL_BUF
-    POP SI
-    POP CX
+    pop di
+    add di, 320
+    pop cx
+    loop loopLinhaGenerica
+
+    pop di
+    pop si
+    pop cx
+    pop bx
+    pop ax
+    pop bp
+    ret 10 ; Limpa 5 par?metros (10 bytes)
+drawGenericSprite endp
+
+;-------------------------------------------------
+; eraseGenericSprite: Apaga sprite NO BUFFER
+; [bp+12] = PUSH X
+; [bp+10] = PUSH Y
+; [bp+8]  = PUSH offset
+; [bp+6]  = PUSH Largura
+; [bp+4]  = PUSH Altura
+;-------------------------------------------------
+eraseGenericSprite proc
+    push bp
+    mov bp, sp
+    push ax
+    push bx
+    push cx
+    push si
+    push di
+
+    mov si, [bp+8] ; offset do sprite
+
+    mov ax, [bp+10] ; Y
+    mov bx, 320
+    mul bx
+    add ax, [bp+12] ; X
+    mov di, ax     
+
+    mov cx, [bp+4] ; Altura
+loopLinhaEraseGen:
+    push cx
+    push di
     
-    LOOP LOOP_EST
+    mov cx, [bp+6] ; Largura
+loopPixelEraseGen:
+    lodsb
+    mov es:[di], al ; Desenha (incluindo 0)
+    inc di
+    loop loopPixelEraseGen
     
-    POP SI
-    POP DX
-    POP CX
-    POP BX
-    POP AX
-    RET
-DESENHA_ESTRELAS_BUF ENDP
+    pop di
+    add di, 320
+    pop cx
+    loop loopLinhaEraseGen
+
+    pop di
+    pop si
+    pop cx
+    pop bx
+    pop ax
+    pop bp
+    ret 10 ; Limpa 5 par?metros (10 bytes)
+eraseGenericSprite endp
+
+
+;-------------------------------------------------
+; drawSprite: Atalho para drawGenericSprite (29x13)
+; [bp+8]  = PUSH X
+; [bp+6]  = PUSH Y
+; [bp+4]  = PUSH offset
+;-------------------------------------------------
+drawSprite proc
+    push bp
+    mov bp, sp
+    
+    push [bp+8] ; X
+    push [bp+6] ; Y
+    push [bp+4] ; Offset
+    push SPRITE_LARGURA
+    push SPRITE_ALTURA
+    call drawGenericSprite
+    
+    pop bp
+    ret 6
+drawSprite endp
+
+;-------------------------------------------------
+; eraseSprite: Atalho para eraseGenericSprite (29x13)
+; [bp+8]  = PUSH X
+; [bp+6]  = PUSH Y
+; [bp+4]  = PUSH offset
+;-------------------------------------------------
+eraseSprite proc
+    push bp
+    mov bp, sp
+    
+    push [bp+8] ; X
+    push [bp+6] ; Y
+    push [bp+4] ; Offset
+    push SPRITE_LARGURA
+    push SPRITE_ALTURA
+    call eraseGenericSprite
+    
+    pop bp
+    ret 6
+eraseSprite endp
+
+
+; (Rotinas de Fonte: drawCharToBuffer, drawStringToBuffer, drawBoxToBuffer)
+; ... (Cole o resto do seu graphics.asm existente aqui, sem altera??es) ...
+
+;-------------------------------------------------
+; drawCharToBuffer: Desenha um caractere 8x8 no buffer
+;-------------------------------------------------
+drawCharToBuffer proc
+    push bp
+    mov bp, sp
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+    push di
+    
+    mov ax, 0
+    mov al, [bp+4]
+    mov bl, 8
+    mul bl
+    mov si, ax
+    add si, offset IBM_BIOS
+
+    mov ax, [bp+8]
+    mov bx, 320
+    mul bx
+    add ax, [bp+10]
+    mov di, ax
+    
+    mov cl, 8
+charLinhaLoop:
+    push di
+    mov dh, [si]
+    inc si
+    
+    mov ch, 8
+charPixelLoop:
+    mov al, dh
+    rol al, 1
+    mov dh, al
+    
+    jnc naoDesenhaPixel
+    
+    mov al, [bp+6]
+    mov es:[di], al
+    
+naoDesenhaPixel:
+    inc di
+    dec ch
+    jnz charPixelLoop
+    
+    pop di
+    add di, 320
+    dec cl
+    jnz charLinhaLoop
+
+    pop di
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    pop bp
+    ret 8
+drawCharToBuffer endp
+
+;-------------------------------------------------
+; drawStringToBuffer: Desenha string no buffer
+;-------------------------------------------------
+drawStringToBuffer proc
+    push bp
+    mov bp, sp
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+    
+    mov si, [bp+4]
+    mov dx, [bp+10]
+    
+loopStr:
+    mov al, [si]
+    cmp al, 0
+    je fimStr
+    
+    push dx
+    push [bp+8]
+    push [bp+6]
+    push ax
+    call drawCharToBuffer
+    
+    inc si
+    add dx, 8
+    jmp loopStr
+    
+fimStr:
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    pop bp
+    ret 8
+drawStringToBuffer endp
+
+;-------------------------------------------------
+; drawBoxToBuffer: Desenha caixa de texto no buffer
+;-------------------------------------------------
+drawBoxToBuffer proc
+    push bp
+    mov bp, sp
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+    push di
+    
+    mov di, [bp+12]
+    mov si, [bp+10]
+    mov bl, [bp+4]
+    
+    mov ax, [bp+8]
+    dec ax
+    mov ch, 8
+    mul ch
+    add ax, di
+    mov dx, ax
+    
+    mov ax, [bp+6]
+    dec ax
+    mov ch, 8
+    mul ch
+    add ax, si
+    mov cx, ax
+
+    push di
+    push si
+    push bx
+    push 218
+    call drawCharToBuffer
+    
+    push dx
+    push si
+    push bx
+    push 191
+    call drawCharToBuffer
+    
+    push di
+    push cx
+    push bx
+    push 192
+    call drawCharToBuffer
+    
+    push dx
+    push cx
+    push bx
+    push 217
+    call drawCharToBuffer
+    
+    mov ax, di
+    add ax, 8
+HLoop:
+    cmp ax, dx
+    jge HLoopFim
+    
+    push ax
+    push si
+    push bx
+    push 196
+    call drawCharToBuffer
+    
+    push ax
+    push cx
+    push bx
+    push 196
+    call drawCharToBuffer
+    
+    add ax, 8
+    jmp HLoop
+HLoopFim:
+
+    mov ax, si
+    add ax, 8
+VLoop:
+    cmp ax, cx
+    jge VLoopFim
+    
+    push di
+    push ax
+    push bx
+    push 179
+    call drawCharToBuffer
+    
+    push dx
+    push ax
+    push bx
+    push 179
+    call drawCharToBuffer
+    
+    add ax, 8
+    jmp VLoop
+VLoopFim:
+
+    pop di
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    pop bp
+    ret 10
+drawBoxToBuffer endp
