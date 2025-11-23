@@ -24,6 +24,7 @@ BUFFER_SEG ENDS
     COR_VERDE_CLARO EQU 0Ah
     COR_BRANCA_TXT  EQU 0Fh
     COR_VERMELHA_CLARO EQU 0Ch
+    COR_CIANO_CLARO EQU 0Bh
 
     ; --- Constantes do Jogo ---
     STATUS_BAR_HEIGHT EQU 16
@@ -37,6 +38,7 @@ BUFFER_SEG ENDS
 
     ; --- Vari?veis de Estado ---
     gameState        db 0  ; 0 = Menu, 1 = Jogo, 2 = Game Over
+    currentPhase     db 1
     opcaoSelecionada db 0
     teclaPressionada dw 0
     
@@ -189,11 +191,17 @@ pressionouEnter:
     cmp [opcaoSelecionada], 1
     je exitGame
     
-    ; Inicia o Jogo
-    call resetGameVars ; <-- NOVO: Reseta o jogo
-    call showPhase1Screen
-    mov [gameState], 1
+    ; --- Iniciar Jogo ---
+    call resetGameVars
+    
+    mov [currentPhase], 1       ; Define Fase 1
+    mov al, [currentPhase]      ; Passa o n?mero 1 para AL
+    call showTransitionScreen   ; <--- CHAMA A NOVA TELA
+    
+    mov [gameState], 1          ; Muda para o jogo
     call initTimer
+    
+    jmp menuInputFim
     
 menuInputFim:
     ret
@@ -230,29 +238,78 @@ gameOverFim:
 handleGameOverInput endp
 
 
-;-------------------------------------------------
-; showPhase1Screen: Mostra a tela "Fase 1"
-;-------------------------------------------------
-showPhase1Screen proc
-    call clearBuffer
+; -----------------------------------------------------------------
+; showTransitionScreen
+; Desenha a arte ASCII de 6 linhas da Fase 1
+; -----------------------------------------------------------------
+showTransitionScreen proc
+    push ax
+    push cx
+    push dx
     
-    push 80
-    push 96
-    push COR_BRANCA_TXT
+    call clearBuffer        ; Limpa a tela (fica tudo preto)
+
+    ; --- Verifica se ? Fase 1 (Seguran?a) ---
+    cmp al, 1
+    je .continuar       ; Se for 1, pula o JMP e continua
+    jmp .fimTransition  ; Se n?o for 1, pula l? para o final (JMP alcan?a longe)
+.continuar:
+
+    ; --- Desenha as 6 linhas ---
+    ; C?lculo: Largura ~312px (X=4), Altura 48px (Y=76)
+    
+    push 4              ; X
+    push 76             ; Y
+    push COR_CIANO_CLARO
     push offset fase1Linha1
     call drawStringToBuffer
     
+    push 4              ; X
+    push 84             ; Y (+8 pixels)
+    push COR_CIANO_CLARO
+    push offset fase1Linha2
+    call drawStringToBuffer
+    
+    push 4
+    push 92
+    push COR_CIANO_CLARO
+    push offset fase1Linha3
+    call drawStringToBuffer
+    
+    push 4
+    push 100
+    push COR_CIANO_CLARO
+    push offset fase1Linha4
+    call drawStringToBuffer
+    
+    push 4
+    push 108
+    push COR_CIANO_CLARO
+    push offset fase1Linha5
+    call drawStringToBuffer
+    
+    push 4
+    push 116
+    push COR_CIANO_CLARO
+    push offset fase1Linha6
+    call drawStringToBuffer
+
+    ; --- Mostra na tela e espera ---
     call copyBufferToVideo
     
-    ; Pausa por 4 segundos
+    ; Delay de ~4 segundos
     mov cx, 200
-delayFase:
+.delayLoop:
     push 20000
     call delay
-    loop delayFase
-    
+    loop .delayLoop
+
+.fimTransition:
+    pop dx
+    pop cx
+    pop ax
     ret
-showPhase1Screen endp
+showTransitionScreen endp
 
 ;-------------------------------------------------
 ; drawGameOverScreen: Desenha o texto "GAME OVER"
