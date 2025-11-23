@@ -69,6 +69,14 @@ BUFFER_SEG ENDS
     gameTime        dw GAME_START_TIME
     
     lastSecond      db 99
+    
+    ; --- Vari?veis dos Tiros ---
+    MAX_TIROS       EQU 5
+    tirosX          dw MAX_TIROS dup(0) ; Posi??o X
+    tirosY          dw MAX_TIROS dup(0) ; Posi??o Y
+    tirosAtivo      db MAX_TIROS dup(0) ; 0=Inativo, 1=Ativo
+    
+    TECLA_ESPACO    EQU 57              ; Scan code (39h = 57 decimal)
 
 .code
 INCLUDE graphics.asm
@@ -115,9 +123,11 @@ runGame:
     ; --- L?gica do Estado de Jogo ---
     call handleGameInput
     call updatePlayer
+    call updateTiros
     call updateTimer
     call drawStatusBar
     call drawPlayer
+    call drawTiros
     jmp drawFrame
 
 runGameOver:
@@ -217,6 +227,14 @@ handleGameInput proc
 
     cmp ah, TECLA_ESC
     je exitGame
+    
+    cmp ah, TECLA_ESPACO
+    je tentarAtirar
+    jmp gameInputFim
+
+tentarAtirar:
+    call spawnTiro
+    jmp gameInputFim
     
 gameInputFim:
     ret
@@ -646,6 +664,14 @@ resetGameVars proc
     mov [playerLastX], 10
     mov [playerLastY], 100
     
+    ; Limpa array de tiros
+    mov cx, MAX_TIROS
+    xor bx, bx          ; Zera o ?ndice (BX = 0)
+.limpaTiros:
+    mov [tirosAtivo + bx], 0  ; Desativa o tiro neste slot
+    inc bx
+    loop .limpaTiros
+    
     ; For?a a atualiza??o das strings
     call updateTimeString
     call updateScoreString
@@ -771,5 +797,141 @@ digitLoop:
     pop ax
     ret
 updateScoreString endp
+
+; -----------------------------------------------------------------
+; spawnTiro: Cria um tiro se houver slot vazio
+; -----------------------------------------------------------------
+spawnTiro proc
+    push ax
+    push bx
+    push cx
+    push si
+
+    mov cx, MAX_TIROS
+    xor bx, bx
+    lea si, tirosAtivo
+
+.procuraSlot:
+    mov al, [si + bx]
+    cmp al, 0
+    je .slotLivre
+    inc bx
+    loop .procuraSlot
+    jmp .fimSpawn
+
+.slotLivre:
+    ; Ativa o tiro
+    mov byte ptr [si + bx], 1
+    
+    ; Define Posi??o X (Nave X + 29)
+    mov di, bx
+    shl di, 1           ; Multiplica ?ndice por 2 (para Word)
+    
+    mov ax, [playerX]
+    add ax, 24          ; Sai da ponta da nave (aprox)
+    mov [tirosX + di], ax
+    
+    ; Define Posi??o Y (Nave Y + 6)
+    mov ax, [playerY]
+    add ax, 6           ; Sai do meio da altura
+    mov [tirosY + di], ax
+
+.fimSpawn:
+    pop si
+    pop cx
+    pop bx
+    pop ax
+    ret
+spawnTiro endp
+
+; -----------------------------------------------------------------
+; updateTiros: Move os tiros para a direita
+; -----------------------------------------------------------------
+updateTiros proc
+    push ax
+    push bx
+    push cx
+    push di
+    push si
+
+    mov cx, MAX_TIROS
+    xor bx, bx
+    lea si, tirosAtivo
+
+.loopUpdate:
+    mov al, [si + bx]
+    cmp al, 0
+    je .proxUpdate
+
+    mov di, bx
+    shl di, 1
+    
+    ; Move X + 8 pixels (r?pido)
+    mov ax, [tirosX + di]
+    add ax, 8
+    mov [tirosX + di], ax
+    
+    ; Verifica se saiu da tela (320)
+    cmp ax, 320
+    jl .proxUpdate
+    
+    ; Desativa se saiu
+    mov byte ptr [si + bx], 0
+
+.proxUpdate:
+    inc bx
+    loop .loopUpdate
+
+    pop si
+    pop di
+    pop cx
+    pop bx
+    pop ax
+    ret
+updateTiros endp
+
+; -----------------------------------------------------------------
+; drawTiros: Desenha tiros usando drawGenericSprite
+; -----------------------------------------------------------------
+drawTiros proc
+    push ax
+    push bx
+    push cx
+    push di
+    push si
+
+    mov cx, MAX_TIROS
+    xor bx, bx
+    lea si, tirosAtivo
+
+.loopDraw:
+    mov al, [si + bx]
+    cmp al, 0
+    je .proxDraw
+
+    mov di, bx
+    shl di, 1
+    
+    ; Chama drawGenericSprite(X, Y, Offset, Largura, Altura)
+    ; [bp+12]=X, [bp+10]=Y, [bp+8]=Offset, [bp+6]=W, [bp+4]=H
+    
+    push [tirosX + di]      ; X
+    push [tirosY + di]      ; Y
+    push offset tiroSprite  ; Offset
+    push 4                  ; Largura (4 pixels)
+    push 1                  ; Altura (1 pixel)
+    call drawGenericSprite
+
+.proxDraw:
+    inc bx
+    loop .loopDraw
+
+    pop si
+    pop di
+    pop cx
+    pop bx
+    pop ax
+    ret
+drawTiros endp
 
 end main
