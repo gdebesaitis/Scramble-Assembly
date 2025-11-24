@@ -22,8 +22,14 @@ boxSairLinha3 db 192, 196, 196, 196, 196, 196, 196, 196, 196, 196, 196, 196, 196
 strJogar db '   Jogar    ', 0
 strSair  db '    Sair    ', 0
 
-; (No final do arquivo strings.asm)
-fase1Linha1 db ' ***** FASE 1 ***** ', 0
+; --- Arte ASCII FASE 1 (6 linhas) ---
+fase1Linha1 db '___________                       ____ ', 0
+fase1Linha2 db '\_   _____/____    ______ ____   /_   |', 0
+fase1Linha3 db ' |    __) \__  \  /  ___// __ \   |   |', 0
+fase1Linha4 db ' |     \   / __ \_\___ \\  ___/   |   |', 0
+fase1Linha5 db ' \___  /  (____  /____  >\___  >  |___|', 0
+fase1Linha6 db '     \/        \/     \/     \/        ', 0
+
 strGameOver db 'GAME OVER', 0  ; <<< ADICIONE ESTA LINHA
 
 ; (No final do arquivo strings.asm)
