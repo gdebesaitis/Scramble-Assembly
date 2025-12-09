@@ -30,7 +30,24 @@ fase1Linha4 db ' |     \   / __ \_\___ \\  ___/   |   |', 0
 fase1Linha5 db ' \___  /  (____  /____  >\___  >  |___|', 0
 fase1Linha6 db '     \/        \/     \/     \/        ', 0
 
-strGameOver db 'GAME OVER', 0  ; <<< ADICIONE ESTA LINHA
+; --- FASE 2 ---
+fase2Linha1 db '___________                       ________  ', 0
+fase2Linha2 db '\_   _____/____    ______ ____    \_____  \ ', 0
+fase2Linha3 db ' |    __) \__  \  /  ___// __ \    /  ____/ ', 0
+fase2Linha4 db ' |     \   / __ \_\___ \\  ___/   /       \ ', 0
+fase2Linha5 db ' \___  /  (____  /____  >\___  >  \_______ \', 0
+fase2Linha6 db '     \/        \/     \/     \/           \/', 0
+
+; --- FASE 3 ---
+fase3Linha1 db '___________                       ________  ', 0
+fase3Linha2 db '\_   _____/____    ______ ____    \_____  \ ', 0
+fase3Linha3 db ' |    __) \__  \  /  ___// __ \     _(__  < ', 0
+fase3Linha4 db ' |     \   / __ \_\___ \\  ___/    /       \', 0
+fase3Linha5 db ' \___  /  (____  /____  >\___  >  /______  /', 0
+fase3Linha6 db '     \/        \/     \/     \/          \/ ', 0
+
+strGameOver db 'GAME OVER', 0
+strVencedor db 'VENCEDOR!', 0 ; <--- NOVO
 
 ; (No final do arquivo strings.asm)
 strScore db 'SCORE: 00000', 0

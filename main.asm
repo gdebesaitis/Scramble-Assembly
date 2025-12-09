@@ -28,7 +28,7 @@ BUFFER_SEG ENDS
 
     ; --- Constantes do Jogo ---
     STATUS_BAR_HEIGHT EQU 16
-    GAME_START_TIME   EQU 10 ; (Tempo em segundos)
+    GAME_START_TIME   EQU 05 ; (Tempo em segundos)
     SCORE_PER_SECOND  EQU 10 ; (Pontos ganhos por segundo)
 
     ; --- Includes de DADOS ---
@@ -70,13 +70,26 @@ BUFFER_SEG ENDS
     
     lastSecond      db 99
     
-    ; --- Vari?veis dos Tiros ---
+    ; --- Variaveis dos Inimigos ---
+    MAX_ENEMIES     EQU 5
+    enemiesX        dw MAX_ENEMIES dup(0)
+    enemiesY        dw MAX_ENEMIES dup(0)
+    enemiesActive   db MAX_ENEMIES dup(0) ; 0=Inativo, 1=Ativo
+    enemySpawnTimer db 0
+    enemySpawnRate  db 30 ; Frames entre spawns (ajustavel)
+
+    ; --- Variaveis dos Tiros ---
     MAX_TIROS       EQU 5
-    tirosX          dw MAX_TIROS dup(0) ; Posi??o X
-    tirosY          dw MAX_TIROS dup(0) ; Posi??o Y
+    tirosX          dw MAX_TIROS dup(0) ; Posicao X
+    tirosY          dw MAX_TIROS dup(0) ; Posicao Y
     tirosAtivo      db MAX_TIROS dup(0) ; 0=Inativo, 1=Ativo
     
+    tempWord        dw 0 ; Variavel temporaria para calculos
+    
     TECLA_ESPACO    EQU 57              ; Scan code (39h = 57 decimal)
+    
+    ; --- Timer de Estado (para evitar saida imediata) ---
+    stateTimer      db 0
 
 .code
 INCLUDE graphics.asm
@@ -107,9 +120,11 @@ masterLoop:
     je runMenu
     cmp [gameState], 1
     je runGame
+    cmp [gameState], 2
+    je runGameOver
     
-    ; Se n?o for 0 ou 1, ? 2 (Game Over)
-    jmp runGameOver
+    ; Se for 3 (Vencedor)
+    jmp runGameWin
 
 runMenu:
     ; --- L?gica do Estado de Menu ---
@@ -124,16 +139,27 @@ runGame:
     call handleGameInput
     call updatePlayer
     call updateTiros
+    call spawnEnemy     ; <--- NOVO
+    call updateEnemies  ; <--- NOVO
+    call checkCollisions ; <--- NOVO (Colisoes)
     call updateTimer
     call drawStatusBar
     call drawPlayer
     call drawTiros
+    call drawEnemies    ; <--- NOVO
+    call drawTerrain    ; <--- NOVO
     jmp drawFrame
 
 runGameOver:
     ; --- L?gica do Estado de Game Over ---
     call drawGameOverScreen
     call handleGameOverInput
+    jmp drawFrame
+
+runGameWin:
+    ; --- Logica do Estado de Vencedor ---
+    call drawWinScreen
+    call handleGameOverInput ; Reusa input (qualquer tecla volta ao menu)
     jmp drawFrame
 
 drawFrame:
@@ -244,6 +270,14 @@ handleGameInput endp
 ; handleGameOverInput: Processa a entrada do Game Over
 ;-------------------------------------------------
 handleGameOverInput proc
+    ; Verifica Timer de Estado
+    cmp [stateTimer], 0
+    je .checkInputGO
+    
+    dec [stateTimer]
+    ret ; Ignora input enquanto timer > 0
+
+.checkInputGO:
     mov ax, [teclaPressionada]
     cmp ax, 0
     je gameOverFim ; Se nenhuma tecla, continua
@@ -258,60 +292,127 @@ handleGameOverInput endp
 
 ; -----------------------------------------------------------------
 ; showTransitionScreen
-; Desenha a arte ASCII de 6 linhas da Fase 1
+; Desenha a arte ASCII da Fase correspondente
 ; -----------------------------------------------------------------
 showTransitionScreen proc
     push ax
     push cx
     push dx
     
-    call clearBuffer        ; Limpa a tela (fica tudo preto)
+    call clearBuffer        ; Limpa a tela
 
-    ; --- Verifica se ? Fase 1 (Seguran?a) ---
     cmp al, 1
-    je .continuar       ; Se for 1, pula o JMP e continua
-    jmp .fimTransition  ; Se n?o for 1, pula l? para o final (JMP alcan?a longe)
-.continuar:
+    je .drawFase1
+    cmp al, 2
+    jne .checkFase3
+    jmp .drawFase2
+.checkFase3:
+    cmp al, 3
+    jne .checkFim
+    jmp .drawFase3
+.checkFim:
+    jmp .fimTransition
 
-    ; --- Desenha as 6 linhas ---
-    ; C?lculo: Largura ~312px (X=4), Altura 48px (Y=76)
-    
-    push 4              ; X
-    push 76             ; Y
+.drawFase1:
+    push 4
+    push 76
     push COR_CIANO_CLARO
     push offset fase1Linha1
     call drawStringToBuffer
-    
-    push 4              ; X
-    push 84             ; Y (+8 pixels)
+    push 4
+    push 84
     push COR_CIANO_CLARO
     push offset fase1Linha2
     call drawStringToBuffer
-    
     push 4
     push 92
     push COR_CIANO_CLARO
     push offset fase1Linha3
     call drawStringToBuffer
-    
     push 4
     push 100
     push COR_CIANO_CLARO
     push offset fase1Linha4
     call drawStringToBuffer
-    
     push 4
     push 108
     push COR_CIANO_CLARO
     push offset fase1Linha5
     call drawStringToBuffer
-    
     push 4
     push 116
     push COR_CIANO_CLARO
     push offset fase1Linha6
     call drawStringToBuffer
+    jmp .waitTransition
 
+.drawFase2:
+    push 4
+    push 76
+    push COR_VERMELHA_CLARO
+    push offset fase2Linha1
+    call drawStringToBuffer
+    push 4
+    push 84
+    push COR_VERMELHA_CLARO
+    push offset fase2Linha2
+    call drawStringToBuffer
+    push 4
+    push 92
+    push COR_VERMELHA_CLARO
+    push offset fase2Linha3
+    call drawStringToBuffer
+    push 4
+    push 100
+    push COR_VERMELHA_CLARO
+    push offset fase2Linha4
+    call drawStringToBuffer
+    push 4
+    push 108
+    push COR_VERMELHA_CLARO
+    push offset fase2Linha5
+    call drawStringToBuffer
+    push 4
+    push 116
+    push COR_VERMELHA_CLARO
+    push offset fase2Linha6
+    call drawStringToBuffer
+    jmp .waitTransition
+
+.drawFase3:
+    push 4
+    push 76
+    push COR_VERDE_CLARO
+    push offset fase3Linha1
+    call drawStringToBuffer
+    push 4
+    push 84
+    push COR_VERDE_CLARO
+    push offset fase3Linha2
+    call drawStringToBuffer
+    push 4
+    push 92
+    push COR_VERDE_CLARO
+    push offset fase3Linha3
+    call drawStringToBuffer
+    push 4
+    push 100
+    push COR_VERDE_CLARO
+    push offset fase3Linha4
+    call drawStringToBuffer
+    push 4
+    push 108
+    push COR_VERDE_CLARO
+    push offset fase3Linha5
+    call drawStringToBuffer
+    push 4
+    push 116
+    push COR_VERDE_CLARO
+    push offset fase3Linha6
+    call drawStringToBuffer
+    jmp .waitTransition
+
+.waitTransition:
     ; --- Mostra na tela e espera ---
     call copyBufferToVideo
     
@@ -342,6 +443,27 @@ drawGameOverScreen proc
     call drawStringToBuffer
     ret
 drawGameOverScreen endp
+
+;-------------------------------------------------
+; drawWinScreen: Desenha o texto "VENCEDOR!" e Score
+;-------------------------------------------------
+drawWinScreen proc
+    ; VENCEDOR (Verde)
+    push 124 ; X
+    push 96  ; Y
+    push COR_VERDE_CLARO
+    push offset strVencedor
+    call drawStringToBuffer
+    
+    ; Score (Branco)
+    push 116 ; X
+    push 110 ; Y
+    push COR_BRANCA_TXT
+    push offset strScore
+    call drawStringToBuffer
+    
+    ret
+drawWinScreen endp
 
 
 ;-------------------------------------------------
@@ -666,13 +788,21 @@ resetGameVars proc
     
     ; Limpa array de tiros
     mov cx, MAX_TIROS
-    xor bx, bx          ; Zera o ?ndice (BX = 0)
+    xor bx, bx          ; Zera o indice (BX = 0)
 .limpaTiros:
     mov [tirosAtivo + bx], 0  ; Desativa o tiro neste slot
     inc bx
     loop .limpaTiros
+
+    ; Limpa array de inimigos
+    mov cx, MAX_ENEMIES
+    xor bx, bx
+.limpaInimigos:
+    mov [enemiesActive + bx], 0
+    inc bx
+    loop .limpaInimigos
     
-    ; For?a a atualiza??o das strings
+    ; Forca a atualizacao das strings
     call updateTimeString
     call updateScoreString
     ret
@@ -730,8 +860,40 @@ updateTimer proc
     jmp timerFim
     
 gameOverTrigger:
-    ; --- REQUISI??O 2 (Game Over) ---
-    mov [gameState], 2 ; Muda o estado para "Game Over"
+    ; --- Fim do Tempo = Proxima Fase ---
+    inc [currentPhase]
+    cmp [currentPhase], 4
+    je .gameWin
+    
+    ; Mostra Tela de Transicao
+    mov al, [currentPhase]
+    call showTransitionScreen
+    
+    ; Reseta Timer
+    mov [gameTime], GAME_START_TIME
+    call updateTimeString
+    
+    ; Limpa Inimigos e Tiros (Inline para simplificar)
+    mov cx, MAX_TIROS
+    xor bx, bx
+.limpaTirosFase:
+    mov [tirosAtivo + bx], 0
+    inc bx
+    loop .limpaTirosFase
+    
+    mov cx, MAX_ENEMIES
+    xor bx, bx
+.limpaInimigosFase:
+    mov [enemiesActive + bx], 0
+    inc bx
+    loop .limpaInimigosFase
+    
+    jmp timerFim
+
+.gameWin:
+    mov [gameState], 3 ; 3 = Vencedor
+    mov [stateTimer], 50 ; Delay de ~1 segundo
+    jmp timerFim
 
 timerFim:
     pop dx
@@ -933,5 +1095,517 @@ drawTiros proc
     pop ax
     ret
 drawTiros endp
+
+; -----------------------------------------------------------------
+; spawnEnemy: Cria inimigos periodicamente
+; -----------------------------------------------------------------
+spawnEnemy proc
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+    push di
+
+    ; 1. Verifica Timer de Spawn
+    dec [enemySpawnTimer]
+    jnz .fimSpawnEnemy ; Se nao chegou a 0, sai
+
+    ; Reset Timer
+    mov al, [enemySpawnRate]
+    mov [enemySpawnTimer], al
+
+    ; 2. Procura Slot Livre
+    mov cx, MAX_ENEMIES
+    xor bx, bx
+    lea si, enemiesActive
+
+.procuraSlotEnemy:
+    mov al, [si + bx]
+    cmp al, 0
+    je .slotLivreEnemy
+    inc bx
+    loop .procuraSlotEnemy
+    jmp .fimSpawnEnemy ; Sem slots
+
+.slotLivreEnemy:
+    ; 3. Ativa Inimigo
+    mov byte ptr [si + bx], 1
+    
+    mov di, bx
+    shl di, 1
+    
+    ; X = 320 (Fora da tela a direita)
+    mov word ptr [enemiesX + di], 320
+    
+    ; Y = Random (STATUS_BAR_HEIGHT + 10 ate 180)
+    ; Usa System Time para Random
+    mov ah, 00h
+    int 1Ah ; DX = Clock ticks
+    
+    mov ax, dx
+    xor dx, dx
+    mov cx, 140 ; Range (180 - 40)
+    div cx      ; DX = Resto (0..139)
+    
+    add dx, 30  ; Offset Y
+    mov [enemiesY + di], dx
+
+.fimSpawnEnemy:
+    pop di
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+spawnEnemy endp
+
+; -----------------------------------------------------------------
+; updateEnemies: Move inimigos para a esquerda
+; -----------------------------------------------------------------
+updateEnemies proc
+    push ax
+    push bx
+    push cx
+    push dx
+    push di
+    push si
+
+    mov cx, MAX_ENEMIES
+    xor bx, bx
+    lea si, enemiesActive
+
+.loopUpdateEnemies:
+    mov al, [si + bx]
+    cmp al, 0
+    je .proxUpdateEnemy
+
+    mov di, bx
+    shl di, 1
+    
+    ; Velocidade baseada na Fase
+    mov dx, 2 ; Velocidade Padrao (Fase 1)
+    cmp [currentPhase], 3
+    jne .moveEnemy
+    mov dx, 4 ; Velocidade Rapida (Fase 3)
+
+.moveEnemy:
+    mov ax, [enemiesX + di]
+    sub ax, dx
+    mov [enemiesX + di], ax
+    
+    ; Verifica se saiu da tela (X < -30)
+    cmp ax, -30
+    jg .proxUpdateEnemy
+    
+    ; Desativa se saiu
+    mov byte ptr [si + bx], 0
+
+.proxUpdateEnemy:
+    inc bx
+    loop .loopUpdateEnemies
+
+    pop si
+    pop di
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+updateEnemies endp
+
+; -----------------------------------------------------------------
+; drawEnemies: Desenha inimigos ativos
+; -----------------------------------------------------------------
+drawEnemies proc
+    push ax
+    push bx
+    push cx
+    push dx
+    push di
+    push si
+
+    mov cx, MAX_ENEMIES
+    xor bx, bx
+    lea si, enemiesActive
+
+.loopDrawEnemies:
+    mov al, [si + bx]
+    cmp al, 0
+    je .proxDrawEnemy
+
+    mov di, bx
+    shl di, 1
+    
+    ; Seleciona Sprite baseado na Fase
+    mov dx, offset alienSprite ; Padrao (Fase 1 e 3)
+    cmp [currentPhase], 2
+    jne .drawTheEnemy
+    mov dx, offset meteoroSprite ; Fase 2
+
+.drawTheEnemy:
+    push [enemiesX + di]    ; X
+    push [enemiesY + di]    ; Y
+    push dx                 ; Offset do Sprite
+    push SPRITE_LARGURA
+    push SPRITE_ALTURA
+    call drawGenericSprite
+
+.proxDrawEnemy:
+    inc bx
+    loop .loopDrawEnemies
+
+    pop si
+    pop di
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+drawEnemies endp
+
+; -----------------------------------------------------------------
+; checkCollisions: Verifica colisoes (Nave-Inimigo, Tiro-Inimigo)
+; -----------------------------------------------------------------
+checkCollisions proc
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+    push di
+    push bp
+
+    ; --- 1. Nave vs Inimigos ---
+    mov cx, MAX_ENEMIES
+    xor bx, bx
+    lea si, enemiesActive
+
+.loopColNave:
+    mov al, [si + bx]
+    cmp al, 0
+    je .proxColNave
+
+    mov di, bx
+    shl di, 1
+    
+    ; Carrega coords do Inimigo
+    mov ax, [enemiesX + di] ; X2
+    mov dx, [enemiesY + di] ; Y2
+    
+    ; Checa colisao com Player (X1, Y1)
+    ; Player: [playerX], [playerY], W=29, H=13
+    ; Enemy: AX, DX, W=29, H=13
+    
+    ; X1 < X2 + W2  => playerX < enemyX + 29
+    mov bp, ax
+    add bp, SPRITE_LARGURA
+    cmp [playerX], bp
+    jge .proxColNave
+    
+    ; X1 + W1 > X2 => playerX + 29 > enemyX
+    mov bp, [playerX]
+    add bp, SPRITE_LARGURA
+    cmp bp, ax
+    jle .proxColNave
+    
+    ; Y1 < Y2 + H2 => playerY < enemyY + 13
+    mov bp, dx
+    add bp, SPRITE_ALTURA
+    cmp [playerY], bp
+    jge .proxColNave
+    
+    ; Y1 + H1 > Y2 => playerY + 13 > enemyY
+    mov bp, [playerY]
+    add bp, SPRITE_ALTURA
+    cmp bp, dx
+    jle .proxColNave
+    
+    ; --- COLISAO DETECTADA (Nave vs Inimigo) ---
+    ; 1. Remove Inimigo
+    mov byte ptr [si + bx], 0
+    
+    ; 2. Perde Vida
+    dec [playerLives]
+    cmp [playerLives], 0
+    jl .triggerGameOver
+    
+    ; 3. Reseta Posicao Player (Feedback visual simples)
+    mov [playerX], 10
+    mov [playerY], 100
+    jmp .proxColNave
+
+.triggerGameOver:
+    mov [gameState], 2
+    mov [stateTimer], 50 ; Delay de ~1 segundo
+    jmp .fimCollisions
+
+.proxColNave:
+    inc bx
+    loop .loopColNave
+
+
+    ; --- 2. Tiros vs Inimigos ---
+    ; Loop externo: Tiros
+    ; Loop interno: Inimigos
+    
+    mov cx, MAX_TIROS
+    xor bx, bx ; Index Tiro
+    
+.loopTiro:
+    cmp [tirosAtivo + bx], 0
+    jne .processTiro
+    jmp .proxTiro
+.processTiro:
+    
+    ; Pega coords do Tiro
+    mov di, bx
+    shl di, 1
+    mov ax, [tirosX + di] ; TiroX
+    mov dx, [tirosY + di] ; TiroY
+    ; Tiro W=4, H=1
+    
+    push bx ; Salva index Tiro
+    push cx ; Salva contador Tiros
+    
+    ; Loop Interno (Inimigos)
+    mov cx, MAX_ENEMIES
+    xor bx, bx ; Index Inimigo
+    lea si, enemiesActive
+    
+.loopEnemyTiro:
+    mov al, [si + bx]
+    cmp al, 0
+    je .proxEnemyTiro
+    
+    push di
+    mov di, bx
+    shl di, 1
+    mov si, [enemiesX + di] ; EnemyX
+    mov bp, [enemiesY + di] ; EnemyY
+    pop di
+    
+    ; AX=TiroX, DX=TiroY
+    ; SI=EnemyX, BP=EnemyY
+    
+    ; Check X: TiroX < EnemyX + 29
+    mov word ptr [tempWord], si
+    add word ptr [tempWord], SPRITE_LARGURA
+    mov di, [tempWord]
+    cmp ax, di
+    jge .proxEnemyTiro
+    
+    ; Check X: TiroX + 4 > EnemyX
+    mov word ptr [tempWord], ax
+    add word ptr [tempWord], 4
+    mov di, [tempWord]
+    cmp di, si
+    jle .proxEnemyTiro
+    
+    ; Check Y: TiroY < EnemyY + 13
+    mov word ptr [tempWord], bp
+    add word ptr [tempWord], SPRITE_ALTURA
+    mov di, [tempWord]
+    cmp dx, di
+    jge .proxEnemyTiro
+    
+    ; Check Y: TiroY + 1 > EnemyY
+    mov word ptr [tempWord], dx
+    add word ptr [tempWord], 1
+    mov di, [tempWord]
+    cmp di, bp
+    jle .proxEnemyTiro
+    
+    ; --- COLISAO TIRO vs INIMIGO ---
+    
+    ; 1. Verifica se eh Meteoro (Fase 2) -> Indestrutivel
+    cmp [currentPhase], 2
+    je .meteoroHit
+    
+    ; 2. Remove Inimigo (Se nao for meteoro)
+    ; BX eh index inimigo
+    lea si, enemiesActive
+    mov byte ptr [si + bx], 0 
+    
+    ; 3. Adiciona Score
+    mov ax, [playerScore]
+    add ax, 100 ; Base 100
+    cmp [currentPhase], 3
+    jne .saveScore
+    add ax, 50 ; +50 se Fase 3 (Total 150)
+.saveScore:
+    mov [playerScore], ax
+    call updateScoreString
+    
+.meteoroHit:
+    ; 4. Remove Tiro
+    pop cx ; Restaura contador Tiros
+    pop bx ; Restaura index Tiro
+    
+    mov [tirosAtivo + bx], 0
+    
+    push cx ; Salva contador Tiros de novo para o jump
+    jmp .proxTiro ; Vai pro proximo tiro (esse ja morreu)
+
+.proxEnemyTiro:
+    inc bx
+    dec cx
+    jz .fimLoopEnemy
+    jmp .loopEnemyTiro
+.fimLoopEnemy:
+    
+    ; Fim loop interno
+    pop cx ; Restaura contador Tiros
+    pop bx ; Restaura index Tiro
+
+.proxTiro:
+    inc bx
+    dec cx
+    jz .fimLoopTiro
+    jmp .loopTiro
+.fimLoopTiro:
+
+.fimCollisions:
+    pop bp
+    pop di
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+checkCollisions endp
+
+; -----------------------------------------------------------------
+; drawRectToBuffer: Desenha retangulo solido
+; [bp+12] = X
+; [bp+10] = Y
+; [bp+8]  = W
+; [bp+6]  = H
+; [bp+4]  = Cor
+; -----------------------------------------------------------------
+drawRectToBuffer proc
+    push bp
+    mov bp, sp
+    push ax
+    push bx
+    push cx
+    push dx
+    push di
+    
+    mov ax, [bp+10] ; Y
+    mov bx, 320
+    mul bx
+    add ax, [bp+12] ; X
+    mov di, ax
+    
+    mov dx, [bp+6] ; H
+.loopRectY:
+    push di
+    mov cx, [bp+8] ; W
+    mov al, [bp+4] ; Cor
+    rep stosb
+    pop di
+    add di, 320
+    dec dx
+    jnz .loopRectY
+    
+    pop di
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    pop bp
+    ret 10
+drawRectToBuffer endp
+
+; -----------------------------------------------------------------
+; drawTerrain: Desenha o terreno baseado na fase
+; -----------------------------------------------------------------
+drawTerrain proc
+    push ax
+    push bx
+    push cx
+    push dx
+    push di
+    
+    cmp [currentPhase], 3
+    je .drawFase3Terrain
+    
+    ; --- Fase 1 e 2: Montanhas (Simples) ---
+    ; Desenha retangulos verdes na parte inferior
+    
+    mov cx, 10
+    mov ax, 0 ; X inicial
+    
+.loopMontanhas:
+    push cx
+    push ax ; Salva X
+    
+    ; Altura pseudo-aleatoria (usando parte do X)
+    mov dx, ax
+    and dx, 0Fh ; 0-15
+    shl dx, 2   ; 0-60
+    add dx, 20  ; 20-80 pixels de altura
+    
+    ; Y = 200 - Altura
+    mov bx, 200
+    sub bx, dx
+    
+    push ax ; X
+    push bx ; Y
+    push 32 ; W
+    push dx ; H
+    push 2  ; Cor (Verde)
+    call drawRectToBuffer
+    
+    pop ax ; Recupera X
+    add ax, 32
+    pop cx
+    loop .loopMontanhas
+    
+    jmp .fimTerrain
+
+.drawFase3Terrain:
+    ; --- Fase 3: Colunas e Tijolos ---
+    ; Desenha colunas a cada 64 pixels
+    
+    mov cx, 5
+    mov ax, 20 ; X inicial
+    
+.loopColunas:
+    push cx
+    push ax
+    
+    ; Desenha Coluna (Base)
+    push ax
+    push 160 ; Y
+    push offset columnSprite
+    push 24
+    push 16
+    call drawGenericSprite
+    
+    ; Desenha Tijolo (Topo)
+    push ax ; X (mesmo)
+    push 144 ; Y (160 - 16)
+    push offset brickSprite
+    push 24
+    push 16
+    call drawGenericSprite
+    
+    pop ax
+    add ax, 64
+    pop cx
+    loop .loopColunas
+
+.fimTerrain:
+    pop di
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+drawTerrain endp
 
 end main
