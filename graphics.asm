@@ -79,18 +79,65 @@ drawGenericSprite proc
 
     mov si, [bp+8] ; offset do sprite
 
+    ; --- CLIPPING X ---
+    mov ax, [bp+12] ; X
+    mov cx, [bp+6]  ; Largura
+    
+    ; Verifica se X >= 320
+    cmp ax, 320
+    jge fimDrawGeneric ; Totalmente fora a direita
+    
+    ; Verifica se X + W > 320 (Saiu pela direita)
+    mov bx, ax
+    add bx, cx
+    cmp bx, 320
+    jle checkLeftClip
+    
+    ; Recorta largura
+    sub bx, 320 ; bx = excesso
+    sub cx, bx  ; cx = nova largura
+    
+checkLeftClip:
+    ; Verifica se X < 0 (Assumindo X como signed word)
+    cmp ax, 0
+    jge calcAddress
+    
+    ; Se X < 0, precisa pular pixels iniciais do sprite
+    ; Ex: X = -5. Pula 5 pixels do sprite. Desenha a partir de X=0.
+    ; Nova Largura = Largura + X (ex: 29 + (-5) = 24)
+    
+    add cx, ax ; Reduz largura
+    cmp cx, 0
+    jle fimDrawGeneric ; Totalmente fora a esquerda
+    
+    ; Ajusta SI (Offset do Sprite) para pular os pixels
+    mov bx, ax
+    neg bx ; bx = 5 (pixels a pular)
+    add si, bx ; Avan?a ponteiro do sprite
+    
+    mov ax, 0 ; Novo X na tela ? 0
+    
+calcAddress:
+    ; Calcula DI = (Y * 320) + X
+    push ax ; Salva X ajustado
     mov ax, [bp+10] ; Y
     mov bx, 320
     mul bx
-    add ax, [bp+12] ; X
+    pop bx ; Recupera X ajustado
+    add ax, bx
     mov di, ax     
 
-    mov cx, [bp+4] ; Altura
+    mov dx, [bp+4] ; Altura (usar DX para loop externo)
+    
+    ; Precisa saber o "pulo" no sprite ao fim de cada linha
+    ; Pulo = Largura Original - Largura Desenhada
+    mov bx, [bp+6] ; Largura Original
+    sub bx, cx     ; Pulo
+    
 loopLinhaGenerica:
-    push cx
+    push cx ; Salva largura desenhada
     push di
     
-    mov cx, [bp+6] ; Largura
 loopPixelGenerico:
     lodsb
     cmp al, 0
@@ -103,8 +150,14 @@ pularPixelGenerico:
     pop di
     add di, 320
     pop cx
-    loop loopLinhaGenerica
+    
+    ; Pula pixels restantes do sprite (se houve clipping)
+    add si, bx
+    
+    dec dx
+    jnz loopLinhaGenerica
 
+fimDrawGeneric:
     pop di
     pop si
     pop cx

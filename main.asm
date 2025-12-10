@@ -28,7 +28,7 @@ BUFFER_SEG ENDS
 
     ; --- Constantes do Jogo ---
     STATUS_BAR_HEIGHT EQU 16
-    GAME_START_TIME   EQU 05 ; (Tempo em segundos)
+    GAME_START_TIME   EQU 40 ; (Tempo em segundos)
     SCORE_PER_SECOND  EQU 10 ; (Pontos ganhos por segundo)
 
     ; --- Includes de DADOS ---
@@ -41,6 +41,9 @@ BUFFER_SEG ENDS
     currentPhase     db 1
     opcaoSelecionada db 0
     teclaPressionada dw 0
+    
+    ; --- Vari?veis de Scrolling ---
+    terrainScroll    dw 0
     
     ; --- Vari?veis das Anima??es do Menu ---
     naveX    dw 0
@@ -143,6 +146,7 @@ runGame:
     call updateEnemies  ; <--- NOVO
     call checkCollisions ; <--- NOVO (Colisoes)
     call updateTimer
+    call updateTerrainScroll ; <--- NOVO (Scrolling)
     call drawStatusBar
     call drawPlayer
     call drawTiros
@@ -491,6 +495,12 @@ drawStatusBar proc
     mov ax, 111
     mov bx, 2
     
+    mov cl, [playerLives]
+    cmp cl, 0
+    jle .fimLives
+    xor ch, ch
+    
+.loopLives:
     push ax
     push bx
     push offset naveAliadaSprite
@@ -498,18 +508,9 @@ drawStatusBar proc
     
     add ax, SPRITE_LARGURA
     add ax, 5
-    push ax
-    push bx
-    push offset naveAliadaSprite
-    call drawSprite
+    loop .loopLives
 
-    add ax, SPRITE_LARGURA
-    add ax, 5
-    push ax
-    push bx
-    push offset naveAliadaSprite
-    call drawSprite
-
+.fimLives:
     pop bx
     pop ax
     ret
@@ -801,6 +802,9 @@ resetGameVars proc
     mov [enemiesActive + bx], 0
     inc bx
     loop .limpaInimigos
+    
+    ; Reseta Timer de Spawn para 1 (Spawn imediato)
+    mov [enemySpawnTimer], 1
     
     ; Forca a atualizacao das strings
     call updateTimeString
@@ -1520,6 +1524,19 @@ drawRectToBuffer proc
     ret 10
 drawRectToBuffer endp
 
+;-------------------------------------------------
+; updateTerrainScroll: Atualiza o offset do terreno
+;-------------------------------------------------
+updateTerrainScroll proc
+    inc [terrainScroll]
+    ; Reseta a cada 320 pixels (opcional, mas bom para evitar overflow)
+    cmp [terrainScroll], 320
+    jl .fimScroll
+    mov [terrainScroll], 0
+.fimScroll:
+    ret
+updateTerrainScroll endp
+
 ; -----------------------------------------------------------------
 ; drawTerrain: Desenha o terreno baseado na fase
 ; -----------------------------------------------------------------
@@ -1529,23 +1546,42 @@ drawTerrain proc
     push cx
     push dx
     push di
+    push si
     
     cmp [currentPhase], 3
     je .drawFase3Terrain
     
-    ; --- Fase 1 e 2: Montanhas (Simples) ---
+    ; --- Fase 1 e 2: Montanhas (Scrolling) ---
     ; Desenha retangulos verdes na parte inferior
+    ; Largura do bloco = 32
     
-    mov cx, 10
-    mov ax, 0 ; X inicial
+    mov cx, 12 ; Desenha 12 blocos para cobrir 320 + scroll
+    
+    ; Calcula X inicial baseado no scroll
+    ; X = - (terrainScroll % 32)
+    mov ax, [terrainScroll]
+    and ax, 1Fh ; Mod 32 (0-31)
+    neg ax      ; Come?a um pouco fora da tela a esquerda
+    
+    ; O indice do terreno tambem deve rolar
+    ; Index = terrainScroll / 32
+    mov bx, [terrainScroll]
+    shr bx, 5   ; Div 32
     
 .loopMontanhas:
     push cx
     push ax ; Salva X
+    push bx ; Salva Index
     
-    ; Altura pseudo-aleatoria (usando parte do X)
+    ; Altura pseudo-aleatoria baseada no Index (BX)
+    ; Pseudo-random simples: (Index * 7 + 3) & 0Fh
+    mov ax, bx
+    mov dx, 7
+    mul dx
+    add ax, 3
+    and ax, 0Fh ; 0-15
+    
     mov dx, ax
-    and dx, 0Fh ; 0-15
     shl dx, 2   ; 0-60
     add dx, 20  ; 20-80 pixels de altura
     
@@ -1553,12 +1589,19 @@ drawTerrain proc
     mov bx, 200
     sub bx, dx
     
+    ; Recupera X da pilha (estava em AX antes)
+    mov si, sp
+    mov ax, [si+4] ; Pega X da pilha sem dar pop
+    
     push ax ; X
     push bx ; Y
     push 32 ; W
     push dx ; H
     push 2  ; Cor (Verde)
     call drawRectToBuffer
+    
+    pop bx ; Recupera Index
+    inc bx ; Proximo bloco do terreno
     
     pop ax ; Recupera X
     add ax, 32
@@ -1568,38 +1611,88 @@ drawTerrain proc
     jmp .fimTerrain
 
 .drawFase3Terrain:
-    ; --- Fase 3: Colunas e Tijolos ---
-    ; Desenha colunas a cada 64 pixels
+    ; --- Fase 3: Colunas e Tijolos (Scrolling) ---
+    ; Largura do bloco = 24
     
-    mov cx, 5
-    mov ax, 20 ; X inicial
+    mov cx, 15 ; 15 blocos * 24 = 360 pixels
+    
+    ; Calcula X inicial
+    ; X = - (terrainScroll % 24)
+    mov ax, [terrainScroll]
+    mov bl, 24
+    div bl ; AH = Resto
+    mov al, ah
+    xor ah, ah
+    neg ax
+    
+    ; Index = terrainScroll / 24
+    mov bx, [terrainScroll]
+    push ax ; Salva X inicial temporariamente
+    mov ax, [terrainScroll]
+    mov dl, 24
+    div dl
+    xor ah, ah
+    mov bx, ax ; BX = Index inicial
+    pop ax ; Recupera X inicial
     
 .loopColunas:
     push cx
+    push ax ; Salva X
+    push bx ; Salva Index
+    
+    ; Gera altura/tipo da plataforma baseado no Index (BX)
+    ; Queremos plataformas de 2 a 4 colunas
+    ; Vamos usar bits do Index para decidir altura
+    
+    ; Altura base: 1 a 5 blocos de altura (16px cada)
+    ; Pseudo-random: ((Index * 13 + 7) % 5) + 1
     push ax
-    
-    ; Desenha Coluna (Base)
-    push ax
-    push 160 ; Y
-    push offset columnSprite
-    push 24
-    push 16
-    call drawGenericSprite
-    
-    ; Desenha Tijolo (Topo)
-    push ax ; X (mesmo)
-    push 144 ; Y (160 - 16)
-    push offset brickSprite
-    push 24
-    push 16
-    call drawGenericSprite
-    
+    mov ax, bx
+    mov dx, 13
+    mul dx
+    add ax, 7
+    mov dx, 0
+    mov cx, 5
+    div cx ; DX = Resto (0-4)
+    inc dx ; 1-5
+    mov cx, dx ; CX = Altura em blocos
     pop ax
-    add ax, 64
+    
+    ; Desenha a pilha de colunas
+    ; Y base = 200
+    mov si, 200
+    
+.loopEmpilha:
+    sub si, 16 ; Sobe 16 pixels
+    
+    push ax ; X
+    push si ; Y
+    
+    ; Se for o ultimo bloco (topo), desenha tijolo
+    cmp cx, 1
+    je .desenhaTijolo
+    
+    push offset columnSprite
+    jmp .doDraw
+.desenhaTijolo:
+    push offset brickSprite
+.doDraw:
+    push 24
+    push 16
+    call drawGenericSprite
+    
+    loop .loopEmpilha
+    
+    pop bx ; Recupera Index
+    inc bx
+    
+    pop ax ; Recupera X
+    add ax, 24
     pop cx
     loop .loopColunas
 
 .fimTerrain:
+    pop si
     pop di
     pop dx
     pop cx

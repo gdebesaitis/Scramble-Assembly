@@ -36,7 +36,7 @@ fase2Linha2 db '\_   _____/____    ______ ____    \_____  \ ', 0
 fase2Linha3 db ' |    __) \__  \  /  ___// __ \    /  ____/ ', 0
 fase2Linha4 db ' |     \   / __ \_\___ \\  ___/   /       \ ', 0
 fase2Linha5 db ' \___  /  (____  /____  >\___  >  \_______ \', 0
-fase2Linha6 db '     \/        \/     \/     \/           \/', 0
+fase2Linha6 db '     \/        \/     \/     \/   METEOROS\/', 0
 
 ; --- FASE 3 ---
 fase3Linha1 db '___________                       ________  ', 0
@@ -44,7 +44,7 @@ fase3Linha2 db '\_   _____/____    ______ ____    \_____  \ ', 0
 fase3Linha3 db ' |    __) \__  \  /  ___// __ \     _(__  < ', 0
 fase3Linha4 db ' |     \   / __ \_\___ \\  ___/    /       \', 0
 fase3Linha5 db ' \___  /  (____  /____  >\___  >  /______  /', 0
-fase3Linha6 db '     \/        \/     \/     \/          \/ ', 0
+fase3Linha6 db '     \/        \/     \/     \/   CIDADE \/ ', 0
 
 strGameOver db 'GAME OVER', 0
 strVencedor db 'VENCEDOR!', 0 ; <--- NOVO
