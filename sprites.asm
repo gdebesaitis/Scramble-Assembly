@@ -97,6 +97,7 @@ terrainMap  db 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 25, 24, 2
             db 28, 29, 30, 29, 28, 26, 24, 22, 20, 18, 16, 14, 12, 10, 10, 10, 12, 14, 16, 18
             db 18, 20, 22, 24, 26, 26, 24, 22, 20, 18, 20, 22, 24, 26, 28, 29, 30, 29, 28, 26
             db 24, 22, 20, 18, 16, 15, 14, 14, 14, 14, 15, 16, 17, 18, 19, 20, 20, 18, 18, 18
+TERRAIN_MAP_SIZE EQU $ - terrainMap  ; Tamanho calculado automaticamente (120 bytes)
 
 ; ============================================
 ; --- Mapa de Terreno FASE 3 ---
@@ -122,6 +123,7 @@ phase3Map   db 3, 3, 3          ; Plat 1 (3)
             db 4, 4             ; Plat 19 (2)
             db 2, 2, 2          ; Plat 20 (3)
             db 3, 3, 3          ; Plat 21 (3)
+PHASE3_MAP_SIZE EQU $ - phase3Map    ; Tamanho calculado automaticamente (60 bytes)
             
 ; ============================================
 ; --- Sprite Tijolo (Topo) 24x16 ---
