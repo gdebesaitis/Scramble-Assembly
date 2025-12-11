@@ -29,8 +29,9 @@ BUFFER_SEG ENDS
     ; --- Constantes do Jogo ---
     STATUS_BAR_HEIGHT EQU 16
     GAME_START_TIME   EQU 30 ; (Tempo em segundos)
+    INITIAL_LIVES     EQU 3
 
-    ; --- Pontuacao por Fase (Configuravel) ---
+    ; --- Pontuacao por Fase ---
     SCORE_FASE_1      EQU 10 ; Pontos/seg na Fase 1
     SCORE_FASE_2      EQU 15 ; Pontos/seg na Fase 2
     SCORE_FASE_3      EQU 20 ; Pontos/seg na Fase 3
@@ -80,7 +81,7 @@ BUFFER_SEG ENDS
     playerLastX     dw 10
     playerLastY     dw 100
     playerVelocidade EQU 5
-    playerLives     db 3
+    playerLives     db INITIAL_LIVES
     playerScore     dw 0
     gameTime        dw GAME_START_TIME
     
@@ -190,7 +191,7 @@ drawFrame:
     ; --- Desenha e repete ---
     call copyBufferToVideo
     
-    push 20000 ; 20ms (50 FPS teoricos)
+    push 20000
     call delay
     
     jmp masterLoop
@@ -946,7 +947,7 @@ delay endp
 resetGameVars proc
     mov [gameTime], GAME_START_TIME
     mov [playerScore], 0
-    mov [playerLives], 3
+    mov [playerLives], INITIAL_LIVES
     
     ; Reseta posicao do jogador
     mov [playerX], 10
@@ -1689,7 +1690,7 @@ checkCollisions proc
     ; 2. Perde Vida
     dec [playerLives]
     cmp [playerLives], 0
-    jl .triggerGameOver
+    jle .triggerGameOver
     
     ; 3. Reseta Posicao Player (Feedback visual simples)
     mov [playerX], 10
@@ -2025,7 +2026,7 @@ checkTerrainCollision proc
     ; --- COLISAO COM TERRENO ---
     dec [playerLives]
     cmp [playerLives], 0
-    jl @@gameOverTerrain
+    jle @@gameOverTerrain
     
     ; Reseta posicao
     mov [playerX], 10
