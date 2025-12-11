@@ -28,8 +28,12 @@ BUFFER_SEG ENDS
 
     ; --- Constantes do Jogo ---
     STATUS_BAR_HEIGHT EQU 16
-    GAME_START_TIME   EQU 40 ; (Tempo em segundos)
-    SCORE_PER_SECOND  EQU 10 ; (Pontos ganhos por segundo)
+    GAME_START_TIME   EQU 7 ; (Tempo em segundos)
+
+    ; --- Pontua??o por Fase (Configur?vel) ---
+    SCORE_FASE_1      EQU 10 ; Pontos/seg na Fase 1
+    SCORE_FASE_2      EQU 15 ; Pontos/seg na Fase 2
+    SCORE_FASE_3      EQU 20 ; Pontos/seg na Fase 3
 
     ; --- Includes de DADOS ---
     INCLUDE strings.asm
@@ -47,11 +51,11 @@ BUFFER_SEG ENDS
     
     ; --- Vari?veis das Anima??es do Menu ---
     naveX    dw 0
-    naveY    dw 60
+    naveY    dw 52
     meteoroX dw 319 - SPRITE_LARGURA
-    meteoroY dw 75
+    meteoroY dw 84
     alienX   dw 160
-    alienY   dw 90
+    alienY   dw 116
     alienDir db 1
     
     naveLastX    dw 0
@@ -66,7 +70,7 @@ BUFFER_SEG ENDS
     playerY         dw 100
     playerLastX     dw 10
     playerLastY     dw 100
-    playerVelocidade EQU 3
+    playerVelocidade EQU 5
     playerLives     db 3
     playerScore     dw 0
     gameTime        dw GAME_START_TIME
@@ -303,7 +307,7 @@ showTransitionScreen proc
     push cx
     push dx
     
-    call clearBuffer        ; Limpa a tela
+    call clearBuffer
 
     cmp al, 1
     je .drawFase1
@@ -318,32 +322,34 @@ showTransitionScreen proc
     jmp .fimTransition
 
 .drawFase1:
-    push 4
+    mov ax, 32
+    
+    push ax
     push 76
     push COR_CIANO_CLARO
     push offset fase1Linha1
     call drawStringToBuffer
-    push 4
+    push ax
     push 84
     push COR_CIANO_CLARO
     push offset fase1Linha2
     call drawStringToBuffer
-    push 4
+    push ax
     push 92
     push COR_CIANO_CLARO
     push offset fase1Linha3
     call drawStringToBuffer
-    push 4
+    push ax
     push 100
     push COR_CIANO_CLARO
     push offset fase1Linha4
     call drawStringToBuffer
-    push 4
+    push ax
     push 108
     push COR_CIANO_CLARO
     push offset fase1Linha5
     call drawStringToBuffer
-    push 4
+    push ax
     push 116
     push COR_CIANO_CLARO
     push offset fase1Linha6
@@ -351,32 +357,34 @@ showTransitionScreen proc
     jmp .waitTransition
 
 .drawFase2:
-    push 4
+    mov ax, 24
+    
+    push ax
     push 76
     push COR_VERMELHA_CLARO
     push offset fase2Linha1
     call drawStringToBuffer
-    push 4
+    push ax
     push 84
     push COR_VERMELHA_CLARO
     push offset fase2Linha2
     call drawStringToBuffer
-    push 4
+    push ax
     push 92
     push COR_VERMELHA_CLARO
     push offset fase2Linha3
     call drawStringToBuffer
-    push 4
+    push ax
     push 100
     push COR_VERMELHA_CLARO
     push offset fase2Linha4
     call drawStringToBuffer
-    push 4
+    push ax
     push 108
     push COR_VERMELHA_CLARO
     push offset fase2Linha5
     call drawStringToBuffer
-    push 4
+    push ax
     push 116
     push COR_VERMELHA_CLARO
     push offset fase2Linha6
@@ -384,32 +392,34 @@ showTransitionScreen proc
     jmp .waitTransition
 
 .drawFase3:
-    push 4
+    mov ax, 24
+    
+    push ax
     push 76
     push COR_VERDE_CLARO
     push offset fase3Linha1
     call drawStringToBuffer
-    push 4
+    push ax
     push 84
     push COR_VERDE_CLARO
     push offset fase3Linha2
     call drawStringToBuffer
-    push 4
+    push ax
     push 92
     push COR_VERDE_CLARO
     push offset fase3Linha3
     call drawStringToBuffer
-    push 4
+    push ax
     push 100
     push COR_VERDE_CLARO
     push offset fase3Linha4
     call drawStringToBuffer
-    push 4
+    push ax
     push 108
     push COR_VERDE_CLARO
     push offset fase3Linha5
     call drawStringToBuffer
-    push 4
+    push ax
     push 116
     push COR_VERDE_CLARO
     push offset fase3Linha6
@@ -449,51 +459,45 @@ drawGameOverScreen proc
 drawGameOverScreen endp
 
 ;-------------------------------------------------
-; drawWinScreen: Desenha o texto "VENCEDOR!" e Score
-;-------------------------------------------------
-drawWinScreen proc
-    ; VENCEDOR (Verde)
-    push 124 ; X
-    push 96  ; Y
-    push COR_VERDE_CLARO
-    push offset strVencedor
-    call drawStringToBuffer
-    
-    ; Score (Branco)
-    push 116 ; X
-    push 110 ; Y
-    push COR_BRANCA_TXT
-    push offset strScore
-    call drawStringToBuffer
-    
-    ret
-drawWinScreen endp
-
-
-;-------------------------------------------------
-; drawStatusBar: Desenha a barra de status
+; drawStatusBar: Desenha a barra de status (Bicolor)
 ;-------------------------------------------------
 drawStatusBar proc
     push ax
     push bx
     
-    ; 1. Desenha "SCORE: 00000"
-    push 8
-    push 4
-    push COR_VERDE_CLARO
-    push offset strScore
+    ; 1. SCORE
+    ; Label (Branco)
+    push 8                  ; X
+    push 4                  ; Y
+    push COR_BRANCA_TXT     ; Cor Branca
+    push offset strScoreLabel
     call drawStringToBuffer
     
-    ; 2. Desenha "TEMPO: 60"
-    push 232
-    push 4
-    push COR_VERDE_CLARO
-    push offset strTempo
+    ; Valor (Verde) - X = 8 + (7 chars * 8px) = 64
+    push 64                 ; X ajustado
+    push 4                  ; Y
+    push COR_VERDE_CLARO    ; Cor Verde
+    push offset strScoreValue
+    call drawStringToBuffer
+    
+    ; 2. TEMPO
+    ; Label (Branco)
+    push 232                ; X
+    push 4                  ; Y
+    push COR_BRANCA_TXT     ; Cor Branca
+    push offset strTempoLabel
+    call drawStringToBuffer
+
+    ; Valor (Verde) - X = 232 + (7 chars * 8px) = 288
+    push 288                ; X ajustado
+    push 4                  ; Y
+    push COR_VERDE_CLARO    ; Cor Verde
+    push offset strTempoValue
     call drawStringToBuffer
 
     ; 3. Desenha Naves de Vida
-    mov ax, 111
-    mov bx, 2
+    mov ax, 130
+    mov bx, 4
     
     mov cl, [playerLives]
     cmp cl, 0
@@ -503,11 +507,12 @@ drawStatusBar proc
 .loopLives:
     push ax
     push bx
-    push offset naveAliadaSprite
-    call drawSprite
+    push offset vidaSprite
+    push 19
+    push 7
+    call drawGenericSprite
     
-    add ax, SPRITE_LARGURA
-    add ax, 5
+    add ax, 22
     loop .loopLives
 
 .fimLives:
@@ -515,6 +520,34 @@ drawStatusBar proc
     pop ax
     ret
 drawStatusBar endp
+
+;-------------------------------------------------
+; drawWinScreen: Desenha VENCEDOR e Score (Corrigido para novas strings)
+;-------------------------------------------------
+drawWinScreen proc
+    ; VENCEDOR (Verde)
+    push 124 ; X
+    push 96  ; Y
+    push COR_VERDE_CLARO
+    push offset strVencedor
+    call drawStringToBuffer
+    
+    ; Label Score (Branco)
+    push 116 ; X
+    push 110 ; Y
+    push COR_BRANCA_TXT
+    push offset strScoreLabel
+    call drawStringToBuffer
+    
+    ; Valor Score (Branco)
+    push 172 ; X (116 + 56)
+    push 110 ; Y
+    push COR_BRANCA_TXT
+    push offset strScoreValue
+    call drawStringToBuffer
+    
+    ret
+drawWinScreen endp
 
 
 ;-------------------------------------------------
@@ -531,6 +564,11 @@ updatePlayer proc
     je playerMoveFim
     
     mov bx, playerVelocidade
+    
+    cmp [currentPhase], 3
+    jne .moveNormal
+    add bx, 2
+.moveNormal:
 
     ; Cima
     cmp ah, TECLA_CIMA
@@ -594,24 +632,26 @@ drawMenuToBuffer proc
     push ax
     push bx
     
-    ; --- 1. Desenha o T?tulo ---
-    push 1*8
-    push 3*8
+    push 16              ; X = 16
+    push 1*8             ; Y = 8
     push COR_VERDE_CLARO
     push offset tituloLinha1
     call drawStringToBuffer
-    push 1*8
-    push 4*8
+    
+    push 16              ; X = 16
+    push 2*8             ; Y = 16
     push COR_VERDE_CLARO
     push offset tituloLinha2
     call drawStringToBuffer
-    push 1*8
-    push 5*8
+    
+    push 16              ; X = 16
+    push 3*8             ; Y = 24
     push COR_VERDE_CLARO
     push offset tituloLinha3
     call drawStringToBuffer
-    push 1*8
-    push 6*8
+    
+    push 16              ; X = 16
+    push 4*8             ; Y = 32
     push COR_VERDE_CLARO
     push offset tituloLinha4
     call drawStringToBuffer
@@ -630,13 +670,16 @@ setCorJogar:
 desenharBotoes:
     
     ; --- 3. Desenha o bot?o "Jogar" ---
+    ; Caixa: X=104, W=14 chars (112px). Centro = 160.
     push 104
     push 136
     push 14
     push 3
     push COR_BRANCA_TXT
     call drawBoxToBuffer
-    push 112
+    
+    ; Texto "Jogar" (5 chars = 40px). X = 160 - 20 = 140.
+    push 140
     push 144
     push ax
     push offset strJogar
@@ -649,7 +692,9 @@ desenharBotoes:
     push 3
     push COR_BRANCA_TXT
     call drawBoxToBuffer
-    push 112
+    
+    ; Texto "Sair" (4 chars = 32px). X = 160 - 16 = 144.
+    push 144
     push 176
     mov al, ah
     push ax
@@ -660,7 +705,6 @@ desenharBotoes:
     pop ax
     ret
 drawMenuToBuffer endp
-
 
 ;-------------------------------------------------
 ; updateAnims: Atualiza as coordenadas (Menu)
@@ -679,13 +723,13 @@ updateAnims proc
     mov ax, [alienY]
     mov [alienLastY], ax
     
-    add [naveX], 2
+    add [naveX], 4
     mov ax, [naveX]
     cmp ax, 320
     jle naveOk
     mov [naveX], 0 - SPRITE_LARGURA
 naveOk:
-    sub [meteoroX], 2
+    sub [meteoroX], 4
     mov ax, [meteoroX]
     cmp ax, 0 - SPRITE_LARGURA
     jge meteoroOk
@@ -694,7 +738,7 @@ meteoroOk:
     cmp [alienDir], 1
     je alienEsquerda
 alienDireita:
-    add [alienX], 2
+    add [alienX], 4
     mov ax, [alienX]
     cmp ax, (320 - SPRITE_LARGURA)
     jl alienOk
@@ -702,7 +746,7 @@ alienDireita:
     mov [alienDir], 1
     jmp alienOk
 alienEsquerda:
-    sub [alienX], 2
+    sub [alienX], 4
     mov ax, [alienX]
     cmp ax, 0
     jg alienOk
@@ -829,8 +873,8 @@ initTimer proc
 initTimer endp
 
 ;-------------------------------------------------
-; updateTimer: Compara o segundo atual com o ?ltimo salvo
-; (MODIFICADO: Adiciona score e checa Game Over)
+; updateTimer: Atualiza tempo e score por segundo
+; (Usa constantes configur?veis de pontua??o)
 ;-------------------------------------------------
 updateTimer proc
     push ax
@@ -840,14 +884,16 @@ updateTimer proc
     int 21h
     
     cmp dh, [lastSecond]
-    je timerFim ; Se for igual, 1 segundo n?o passou
-    
+    jne .processaSegundo
+    jmp timerFim
+
+.processaSegundo:
     ; --- Um novo segundo come?ou ---
     mov [lastSecond], dh
     
     mov ax, [gameTime]
     cmp ax, 0
-    je gameOverTrigger ; Se o tempo ? 0, vai para Game Over
+    je gameOverTrigger
     
     ; --- Se o tempo n?o acabou ---
     ; 1. Decrementa o tempo
@@ -855,21 +901,38 @@ updateTimer proc
     mov [gameTime], ax
     call updateTimeString
 
-    ; 2. Adiciona Score (REQUISI??O 1)
+    ; 2. Adiciona Score baseado na Fase Atual (Usando Constantes)
     mov ax, [playerScore]
-    add ax, SCORE_PER_SECOND
+    
+    cmp [currentPhase], 1
+    je .scoreFase1
+    cmp [currentPhase], 2
+    je .scoreFase2
+    
+    ; Se for Fase 3 (ou maior)
+    add ax, SCORE_FASE_3  ; <--- Usa constante (20)
+    jmp .saveScoreTimer
+
+.scoreFase1:
+    add ax, SCORE_FASE_1  ; <--- Usa constante (10)
+    jmp .saveScoreTimer
+
+.scoreFase2:
+    add ax, SCORE_FASE_2  ; <--- Usa constante (15)
+
+.saveScoreTimer:
     mov [playerScore], ax
     call updateScoreString
     
     jmp timerFim
     
 gameOverTrigger:
-    ; --- Fim do Tempo = Proxima Fase ---
+    ; --- Fim do Tempo = Pr?xima Fase ---
     inc [currentPhase]
     cmp [currentPhase], 4
     je .gameWin
     
-    ; Mostra Tela de Transicao
+    ; Mostra Tela de Transi??o
     mov al, [currentPhase]
     call showTransitionScreen
     
@@ -877,7 +940,7 @@ gameOverTrigger:
     mov [gameTime], GAME_START_TIME
     call updateTimeString
     
-    ; Limpa Inimigos e Tiros (Inline para simplificar)
+    ; Limpa Inimigos e Tiros para a nova fase
     mov cx, MAX_TIROS
     xor bx, bx
 .limpaTirosFase:
@@ -906,7 +969,41 @@ timerFim:
 updateTimer endp
 
 ;-------------------------------------------------
-; updateTimeString: Converte [gameTime] para 'strTempo'
+; updateScoreString: Converte [playerScore] para 'strScoreValue'
+;-------------------------------------------------
+updateScoreString proc
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+    
+    mov ax, [playerScore]
+    ; Aponta para o ?ltimo d?gito de '00000' (offset 4)
+    mov si, offset strScoreValue + 4 
+    mov bx, 10
+    mov cx, 5 
+
+digitLoop:
+    xor dx, dx  
+    div bx      
+    
+    add dl, '0' 
+    mov [si], dl 
+    
+    dec si      
+    loop digitLoop
+    
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+updateScoreString endp
+
+;-------------------------------------------------
+; updateTimeString: Converte [gameTime] para 'strTempoValue'
 ;-------------------------------------------------
 updateTimeString proc
     push ax
@@ -921,48 +1018,15 @@ updateTimeString proc
     add al, '0'
     add ah, '0'
     
-    mov [strTempo + 7], al
-    mov [strTempo + 8], ah
+    ; Atualiza na string separada (?ndices 0 e 1)
+    mov [strTempoValue], al     ; Dezena
+    mov [strTempoValue + 1], ah ; Unidade
     
     pop dx
     pop bx
     pop ax
     ret
 updateTimeString endp
-
-;-------------------------------------------------
-; updateScoreString: Converte [playerScore] para 'strScore'
-; (Rotina 'itoa' para 5 d?gitos)
-;-------------------------------------------------
-updateScoreString proc
-    push ax
-    push bx
-    push cx
-    push dx
-    push si
-    
-    mov ax, [playerScore]
-    mov si, offset strScore + 11 ; Aponta para o ?ltimo '0' de 'SCORE: 00000'
-    mov bx, 10
-    mov cx, 5 ; 5 d?gitos
-
-digitLoop:
-    xor dx, dx  ; Limpa o high-word do dividendo
-    div bx      ; AX = AX / 10 -> AX = quociente, DX = resto
-    
-    add dl, '0' ; Converte o resto (0-9) para ASCII ('0'-'9')
-    mov [si], dl ; Salva o d?gito na string
-    
-    dec si      ; Move para a esquerda
-    loop digitLoop
-    
-    pop si
-    pop dx
-    pop cx
-    pop bx
-    pop ax
-    ret
-updateScoreString endp
 
 ; -----------------------------------------------------------------
 ; spawnTiro: Cria um tiro se houver slot vazio
@@ -1101,7 +1165,7 @@ drawTiros proc
 drawTiros endp
 
 ; -----------------------------------------------------------------
-; spawnEnemy: Cria inimigos periodicamente
+; spawnEnemy: Cria inimigos (CORRIGIDO: Prote??o contra Divis?o por Zero)
 ; -----------------------------------------------------------------
 spawnEnemy proc
     push ax
@@ -1113,11 +1177,32 @@ spawnEnemy proc
 
     ; 1. Verifica Timer de Spawn
     dec [enemySpawnTimer]
-    jnz .fimSpawnEnemy ; Se nao chegou a 0, sai
+    jnz .fimSpawnEnemy
 
-    ; Reset Timer
-    mov al, [enemySpawnRate]
-    mov [enemySpawnTimer], al
+    ; --- L?gica de Intervalo ---
+    mov ah, 00h
+    int 1Ah     ; Retorna CX:DX (Ticks). CX ? alterado aqui!
+    
+    ; Fase 1
+    mov ax, dx
+    xor dx, dx
+    mov cx, 30
+    div cx      
+    add dx, 30  ; Range: 30..60
+    
+    cmp [currentPhase], 2
+    jl .setTimer
+    
+    ; Fase 2 e 3 (R?pido)
+    mov ax, [tempWord]
+    add ax, dx
+    xor dx, dx
+    mov cx, 30
+    div cx             
+    add dx, 10         ; Range: 10..40
+
+.setTimer:
+    mov [enemySpawnTimer], dl
 
     ; 2. Procura Slot Livre
     mov cx, MAX_ENEMIES
@@ -1130,7 +1215,7 @@ spawnEnemy proc
     je .slotLivreEnemy
     inc bx
     loop .procuraSlotEnemy
-    jmp .fimSpawnEnemy ; Sem slots
+    jmp .fimSpawnEnemy
 
 .slotLivreEnemy:
     ; 3. Ativa Inimigo
@@ -1139,21 +1224,33 @@ spawnEnemy proc
     mov di, bx
     shl di, 1
     
-    ; X = 320 (Fora da tela a direita)
+    ; X = 320
     mov word ptr [enemiesX + di], 320
     
-    ; Y = Random (STATUS_BAR_HEIGHT + 10 ate 180)
-    ; Usa System Time para Random
+    ; --- Calcular Y Aleat?rio (FASE 3 ADJUST) ---
+    
+    ; 1. Chama o rel?gio PRIMEIRO (pois ele estraga o CX)
     mov ah, 00h
-    int 1Ah ; DX = Clock ticks
+    int 1Ah 
     
     mov ax, dx
-    xor dx, dx
-    mov cx, 140 ; Range (180 - 40)
-    div cx      ; DX = Resto (0..139)
+    add ax, bx  ; Varia com ?ndice
     
-    add dx, 30  ; Offset Y
+    ; 2. AGORA define o Range (CX) com seguran?a
+    mov cx, 130         ; Range Padr?o (Fase 1/2) -> Y vai at? ~155
+    
+    cmp [currentPhase], 3
+    jne .calcDiv
+    mov cx, 75          ; Range Fase 3 -> Y vai at? ~100 (Seguro)
+
+.calcDiv:
+    xor dx, dx
+    div cx              ; Agora CX vale 130 ou 75 (Seguro)
+    
+    add dx, 25          ; Offset Base Y (M?nimo 25)
     mov [enemiesY + di], dx
+    
+    mov [tempWord], dx
 
 .fimSpawnEnemy:
     pop di
@@ -1189,10 +1286,10 @@ updateEnemies proc
     shl di, 1
     
     ; Velocidade baseada na Fase
-    mov dx, 2 ; Velocidade Padrao (Fase 1)
+    mov dx, 4 ; Velocidade Padrao (Fase 1)
     cmp [currentPhase], 3
     jne .moveEnemy
-    mov dx, 4 ; Velocidade Rapida (Fase 3)
+    mov dx, 6 ; Velocidade Rapida (Fase 3)
 
 .moveEnemy:
     mov ax, [enemiesX + di]
@@ -1482,7 +1579,8 @@ checkCollisions proc
 checkCollisions endp
 
 ; -----------------------------------------------------------------
-; drawRectToBuffer: Desenha retangulo solido
+; drawRectToBuffer (COM CLIPPING)
+; Desenha retangulo solido respeitando os limites da tela
 ; [bp+12] = X
 ; [bp+10] = Y
 ; [bp+8]  = W
@@ -1498,23 +1596,59 @@ drawRectToBuffer proc
     push dx
     push di
     
+    mov ax, [bp+12] ; X
+    mov cx, [bp+8]  ; W (Largura)
+
+    ; --- 1. Clipping Esquerda (X < 0) ---
+    cmp ax, 0
+    jge .checkRight
+    ; Se X negativo (ex: -5), reduz a largura e come?a em 0
+    add cx, ax      ; W = W + (-5) -> diminui largura
+    cmp cx, 0
+    jle .fimRect    ; Se largura ficou <= 0, n?o desenha nada
+    mov ax, 0       ; Novo X = 0
+    
+.checkRight:
+    ; --- 2. Clipping Direita (X + W > 320) ---
+    mov bx, ax
+    add bx, cx      ; Posi??o final (X + W)
+    cmp bx, 320
+    jle .calcAddr
+    ; Se passou da direita, corta o excesso
+    sub bx, 320     ; Excesso
+    sub cx, bx      ; Nova largura = W - Excesso
+    cmp cx, 0
+    jle .fimRect
+
+.calcAddr:
+    ; Calcula endere?o inicial no Buffer: DI = (Y * 320) + X
+    push ax         ; Salva X j? corrigido
     mov ax, [bp+10] ; Y
     mov bx, 320
     mul bx
-    add ax, [bp+12] ; X
+    pop bx          ; Recupera X
+    add ax, bx
     mov di, ax
     
-    mov dx, [bp+6] ; H
+    ; Prepara Loop Vertical
+    mov dx, [bp+6]  ; H (Altura)
+    mov bl, [bp+4]  ; Cor (salva em BL para usar AL no stosb)
+
 .loopRectY:
-    push di
-    mov cx, [bp+8] ; W
-    mov al, [bp+4] ; Cor
-    rep stosb
-    pop di
-    add di, 320
-    dec dx
-    jnz .loopRectY
+    push cx         ; Salva largura
+    push di         ; Salva inicio da linha atual
     
+    mov al, bl      ; Move cor para AL
+    rep stosb       ; Desenha a linha
+    
+    pop di
+    add di, 320     ; Pula para a mesma posi??o na linha de baixo
+    pop cx          ; Recupera largura
+    
+    dec dx          ; Decrementa altura
+    jnz .loopRectY
+
+.fimRect:
     pop di
     pop dx
     pop cx
@@ -1528,17 +1662,20 @@ drawRectToBuffer endp
 ; updateTerrainScroll: Atualiza o offset do terreno
 ;-------------------------------------------------
 updateTerrainScroll proc
-    inc [terrainScroll]
-    ; Reseta a cada 320 pixels (opcional, mas bom para evitar overflow)
-    cmp [terrainScroll], 320
-    jl .fimScroll
-    mov [terrainScroll], 0
-.fimScroll:
+    mov ax, [terrainScroll]
+    add ax, 2              ; Velocidade
+    
+    cmp ax, 1440           ; Limite
+    jl .saveScroll
+    sub ax, 1440           ; Reset
+    
+.saveScroll:
+    mov [terrainScroll], ax
     ret
 updateTerrainScroll endp
 
 ; -----------------------------------------------------------------
-; drawTerrain: Desenha o terreno baseado na fase
+; drawTerrain: Terreno Variado (Fase 3 com 60 Colunas e Prote??o)
 ; -----------------------------------------------------------------
 drawTerrain proc
     push ax
@@ -1548,148 +1685,114 @@ drawTerrain proc
     push di
     push si
     
+    ; Verifica Fase 3
     cmp [currentPhase], 3
     je .drawFase3Terrain
     
-    ; --- Fase 1 e 2: Montanhas (Scrolling) ---
-    ; Desenha retangulos verdes na parte inferior
-    ; Largura do bloco = 32
-    
-    mov cx, 12 ; Desenha 12 blocos para cobrir 320 + scroll
-    
-    ; Calcula X inicial baseado no scroll
-    ; X = - (terrainScroll % 32)
-    mov ax, [terrainScroll]
-    and ax, 1Fh ; Mod 32 (0-31)
-    neg ax      ; Come?a um pouco fora da tela a esquerda
-    
-    ; O indice do terreno tambem deve rolar
-    ; Index = terrainScroll / 32
-    mov bx, [terrainScroll]
-    shr bx, 5   ; Div 32
-    
-.loopMontanhas:
-    push cx
-    push ax ; Salva X
-    push bx ; Salva Index
-    
-    ; Altura pseudo-aleatoria baseada no Index (BX)
-    ; Pseudo-random simples: (Index * 7 + 3) & 0Fh
-    mov ax, bx
-    mov dx, 7
-    mul dx
-    add ax, 3
-    and ax, 0Fh ; 0-15
-    
-    mov dx, ax
-    shl dx, 2   ; 0-60
-    add dx, 20  ; 20-80 pixels de altura
-    
-    ; Y = 200 - Altura
-    mov bx, 200
-    sub bx, dx
-    
-    ; Recupera X da pilha (estava em AX antes)
-    mov si, sp
-    mov ax, [si+4] ; Pega X da pilha sem dar pop
-    
-    push ax ; X
-    push bx ; Y
-    push 32 ; W
-    push dx ; H
-    push 2  ; Cor (Verde)
+    ; --- FASE 1 e 2: Terreno Reto ---
+    cmp [currentPhase], 2
+    je .corFase2
+    mov bx, 3       ; Fase 1: Ciano
+    jmp .desenhaReto
+.corFase2:
+    mov bx, 4       ; Fase 2: Vermelho
+
+.desenhaReto:
+    push 0          ; X
+    push 180        ; Y
+    push 320        ; Largura
+    push 20         ; Altura
+    push bx         ; Cor
     call drawRectToBuffer
-    
-    pop bx ; Recupera Index
-    inc bx ; Proximo bloco do terreno
-    
-    pop ax ; Recupera X
-    add ax, 32
-    pop cx
-    loop .loopMontanhas
-    
     jmp .fimTerrain
 
+    ; --- FASE 3: Plataformas ---
 .drawFase3Terrain:
-    ; --- Fase 3: Colunas e Tijolos (Scrolling) ---
-    ; Largura do bloco = 24
+    mov cx, 15      ; Desenha 15 colunas na tela
     
-    mov cx, 15 ; 15 blocos * 24 = 360 pixels
-    
-    ; Calcula X inicial
-    ; X = - (terrainScroll % 24)
+    ; 1. X Inicial
     mov ax, [terrainScroll]
     mov bl, 24
-    div bl ; AH = Resto
-    mov al, ah
+    div bl
+    mov al, ah      ; Resto
     xor ah, ah
-    neg ax
+    neg ax          ; X negativo para suavidade
     
-    ; Index = terrainScroll / 24
+    ; 2. ?ndice Inicial
     mov bx, [terrainScroll]
-    push ax ; Salva X inicial temporariamente
+    push ax         ; Salva X
     mov ax, [terrainScroll]
     mov dl, 24
     div dl
     xor ah, ah
-    mov bx, ax ; BX = Index inicial
-    pop ax ; Recupera X inicial
+    mov bx, ax      ; BX = ?ndice inicial (0 a 59)
+    pop ax          ; Recupera X
     
-.loopColunas:
+.loopColunasF3:
     push cx
-    push ax ; Salva X
-    push bx ; Salva Index
+    push ax         ; Salva X
+    push bx         ; Salva Index
     
-    ; Gera altura/tipo da plataforma baseado no Index (BX)
-    ; Queremos plataformas de 2 a 4 colunas
-    ; Vamos usar bits do Index para decidir altura
+    ; 3. Ler altura do mapa
+    ; O ?ndice BX j? vem certo, mas precisamos garantir que ele 
+    ; n?o estourou 60 no passo anterior.
     
-    ; Altura base: 1 a 5 blocos de altura (16px cada)
-    ; Pseudo-random: ((Index * 13 + 7) % 5) + 1
-    push ax
-    mov ax, bx
-    mov dx, 13
-    mul dx
-    add ax, 7
-    mov dx, 0
-    mov cx, 5
-    div cx ; DX = Resto (0-4)
-    inc dx ; 1-5
-    mov cx, dx ; CX = Altura em blocos
-    pop ax
+    ; Seguran?a: For?a BX para dentro de 0-59 (caso raro)
+    cmp bx, 60
+    jl .idxSeguro
+    sub bx, 60
+.idxSeguro:
     
-    ; Desenha a pilha de colunas
-    ; Y base = 200
-    mov si, 200
+    xor ah, ah
+    mov al, [phase3Map + bx] ; L? altura
+    xor ah, ah
+    
+    ; Se altura for 0 (erro de leitura), corrige para 1
+    cmp ax, 0
+    jne .alturaOk
+    mov ax, 1
+.alturaOk:
+    mov cx, ax      ; CX = Altura em blocos
+    
+    ; 4. Desenhar Coluna
+    mov si, 200     ; Y do ch?o
     
 .loopEmpilha:
-    sub si, 16 ; Sobe 16 pixels
+    sub si, 16      ; Sobe 16px
     
-    push ax ; X
-    push si ; Y
+    mov bp, sp
+    mov ax, [bp+2]  ; Pega X
     
-    ; Se for o ultimo bloco (topo), desenha tijolo
+    push ax         ; X
+    push si         ; Y
+    
     cmp cx, 1
-    je .desenhaTijolo
-    
+    je .tijolo
     push offset columnSprite
-    jmp .doDraw
-.desenhaTijolo:
+    jmp .desenhaBloco
+.tijolo:
     push offset brickSprite
-.doDraw:
-    push 24
-    push 16
+.desenhaBloco:
+    push 24         ; W
+    push 16         ; H
     call drawGenericSprite
     
     loop .loopEmpilha
     
-    pop bx ; Recupera Index
-    inc bx
+    ; --- L?GICA DE WRAP AROUND (CR?TICO) ---
+    pop bx
+    inc bx          ; Pr?ximo ?ndice
+    cmp bx, 60      ; Chegou no fim do mapa (60)?
+    jl .proxIteracao
+    mov bx, 0       ; Volta para o come?o (0)
+.proxIteracao:
     
-    pop ax ; Recupera X
-    add ax, 24
+    pop ax
+    add ax, 24      ; Avan?a X
+    
     pop cx
-    loop .loopColunas
+    dec cx
+    jnz .loopColunasF3
 
 .fimTerrain:
     pop si
