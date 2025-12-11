@@ -18,7 +18,7 @@ boxSairLinha1 db 218, 196, 196, 196, 196, 196, 196, 196, 196, 196, 196, 196, 196
 boxSairLinha2 db 179, '            ', 179, 0
 boxSairLinha3 db 192, 196, 196, 196, 196, 196, 196, 196, 196, 196, 196, 196, 196, 217, 0
 
-; --- Texto dos Bot?es ---
+; --- Texto dos Botoes ---
 strJogar db 'Jogar', 0
 strSair  db 'Sair', 0
 

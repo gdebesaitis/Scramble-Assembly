@@ -28,9 +28,9 @@ BUFFER_SEG ENDS
 
     ; --- Constantes do Jogo ---
     STATUS_BAR_HEIGHT EQU 16
-    GAME_START_TIME   EQU 7 ; (Tempo em segundos)
+    GAME_START_TIME   EQU 30 ; (Tempo em segundos)
 
-    ; --- Pontua??o por Fase (Configur?vel) ---
+    ; --- Pontuacao por Fase (Configuravel) ---
     SCORE_FASE_1      EQU 10 ; Pontos/seg na Fase 1
     SCORE_FASE_2      EQU 15 ; Pontos/seg na Fase 2
     SCORE_FASE_3      EQU 20 ; Pontos/seg na Fase 3
@@ -40,16 +40,25 @@ BUFFER_SEG ENDS
     INCLUDE sprites.asm
     INCLUDE font.asm
 
-    ; --- Vari?veis de Estado ---
+    ; --- Variaveis de Estado ---
     gameState        db 0  ; 0 = Menu, 1 = Jogo, 2 = Game Over
     currentPhase     db 1
     opcaoSelecionada db 0
     teclaPressionada dw 0
     
-    ; --- Vari?veis de Scrolling ---
+    ; --- Estado das teclas (para input fluido) ---
+    keyUp            db 0  ; 1 = pressionada
+    keyDown          db 0
+    keyLeft          db 0
+    keyRight         db 0
+    keySpace         db 0
+    keyEsc           db 0
+    keyEnter         db 0
+    
+    ; --- Variaveis de Scrolling ---
     terrainScroll    dw 0
     
-    ; --- Vari?veis das Anima??es do Menu ---
+    ; --- Variaveis das Animacoes do Menu ---
     naveX    dw 0
     naveY    dw 52
     meteoroX dw 319 - SPRITE_LARGURA
@@ -65,7 +74,7 @@ BUFFER_SEG ENDS
     alienLastX   dw 160
     alienLastY   dw 90
 
-    ; --- Vari?veis do Jogo ---
+    ; --- Variaveis do Jogo ---
     playerX         dw 10
     playerY         dw 100
     playerLastX     dw 10
@@ -101,12 +110,18 @@ BUFFER_SEG ENDS
 .code
 INCLUDE graphics.asm
 
+;-------------------------------------------------
+; main: Funcao principal do programa
+; Funcao: Inicializa o jogo e executa o loop principal
+; Parametros de entrada: Nenhum
+; Parametros de saida: Nenhum
+;-------------------------------------------------
 main proc
     ; 1. Inicializa DS para @data
     mov ax, @data
     mov ds, ax
     
-    ; 2. Configura o modo de v?deo
+    ; 2. Configura o modo de video
     call setupVideoMode
 
     ; 3. Configura ES para o BUFFER_SEG
@@ -116,7 +131,7 @@ main proc
     
     ; 4. Inicia o loop mestre do jogo
 masterLoop:
-    ; 1. L? o teclado (sempre)
+    ; 1. Le o teclado (sempre)
     call checkInput
     
     ; 2. Limpa o buffer
@@ -134,7 +149,7 @@ masterLoop:
     jmp runGameWin
 
 runMenu:
-    ; --- L?gica do Estado de Menu ---
+    ; --- Logica do Estado de Menu ---
     call drawMenuToBuffer
     call updateAnims
     call drawAnims
@@ -142,24 +157,25 @@ runMenu:
     jmp drawFrame
 
 runGame:
-    ; --- L?gica do Estado de Jogo ---
+    ; --- Logica do Estado de Jogo ---
     call handleGameInput
     call updatePlayer
     call updateTiros
-    call spawnEnemy     ; <--- NOVO
-    call updateEnemies  ; <--- NOVO
-    call checkCollisions ; <--- NOVO (Colisoes)
+    call spawnEnemy
+    call updateEnemies
+    call checkCollisions
+    call checkTerrainCollision ; <--- COLISAO COM TERRENO
     call updateTimer
-    call updateTerrainScroll ; <--- NOVO (Scrolling)
+    call updateTerrainScroll
+    call drawTerrain    ; Desenha terreno PRIMEIRO (fundo)
     call drawStatusBar
     call drawPlayer
     call drawTiros
-    call drawEnemies    ; <--- NOVO
-    call drawTerrain    ; <--- NOVO
+    call drawEnemies
     jmp drawFrame
 
 runGameOver:
-    ; --- L?gica do Estado de Game Over ---
+    ; --- Logica do Estado de Game Over ---
     call drawGameOverScreen
     call handleGameOverInput
     jmp drawFrame
@@ -174,7 +190,7 @@ drawFrame:
     ; --- Desenha e repete ---
     call copyBufferToVideo
     
-    push 20000 ; 20ms (50 FPS te?ricos)
+    push 20000 ; 20ms (50 FPS teoricos)
     call delay
     
     jmp masterLoop
@@ -190,38 +206,54 @@ exitGame:
 main endp
 
 
-; --- Rotinas de L?gica (DS = @data, ES = BUFFER_SEG) ---
+; --- Rotinas de Logica (DS = @data, ES = BUFFER_SEG) ---
 
 ;-------------------------------------------------
-; checkInput: Apenas l? o teclado
+; checkInput: Le o teclado usando BIOS (simples)
+; Funcao: Verifica e le teclas pressionadas do buffer do teclado
+; Parametros de entrada: Nenhum
+; Parametros de saida: Atualiza variavel teclaPressionada (AX = scan code + ASCII)
 ;-------------------------------------------------
 checkInput proc
+    push ax
+    
     mov [teclaPressionada], 0
     
+    ; Verifica se ha tecla no buffer
     mov ah, 01h
     int 16h
-    jz noKey
-
+    jz @@noKey
+    
+    ; Le a tecla (remove do buffer)
     mov ah, 00h
     int 16h
+    
+    ; AH = scan code, AL = ASCII
     mov [teclaPressionada], ax
-noKey:
+    
+@@noKey:
+    pop ax
     ret
 checkInput endp
 
 ;-------------------------------------------------
 ; handleMenuInput: Processa a entrada do menu
+; Funcao: Trata as teclas pressionadas no menu principal
+; Parametros de entrada: Nenhum
+; Parametros de saida: Atualiza opcaoSelecionada e gameState conforme necessario
 ;-------------------------------------------------
 handleMenuInput proc
+    ; Usa teclaPressionada para detectar novas teclas
     mov ax, [teclaPressionada]
     cmp ax, 0
     je menuInputFim
 
-    cmp ah, TECLA_CIMA
+    ; AH = scan code
+    cmp ah, 48h         ; Cima
     je pressionouCima
-    cmp ah, TECLA_BAIXO
+    cmp ah, 50h         ; Baixo
     je pressionouBaixo
-    cmp al, TECLA_ENTER
+    cmp ah, 1Ch         ; Enter
     je pressionouEnter
     jmp menuInputFim
 
@@ -233,13 +265,15 @@ pressionouBaixo:
     jmp menuInputFim
 pressionouEnter:
     cmp [opcaoSelecionada], 1
-    je exitGame
+    jne @@iniciarJogo
+    jmp exitGame
     
+@@iniciarJogo:
     ; --- Iniciar Jogo ---
     call resetGameVars
     
     mov [currentPhase], 1       ; Define Fase 1
-    mov al, [currentPhase]      ; Passa o n?mero 1 para AL
+    mov al, [currentPhase]      ; Passa o numero 1 para AL
     call showTransitionScreen   ; <--- CHAMA A NOVA TELA
     
     mov [gameState], 1          ; Muda para o jogo
@@ -253,29 +287,36 @@ handleMenuInput endp
 
 ;-------------------------------------------------
 ; handleGameInput: Processa a entrada do jogo
+; Funcao: Trata as teclas pressionadas durante o jogo
+; Parametros de entrada: Nenhum
+; Parametros de saida: Pode chamar spawnTiro ou sair do jogo
 ;-------------------------------------------------
 handleGameInput proc
     mov ax, [teclaPressionada]
     cmp ax, 0
-    je gameInputFim
-
-    cmp ah, TECLA_ESC
-    je exitGame
+    je @@gameInputDone
     
-    cmp ah, TECLA_ESPACO
-    je tentarAtirar
-    jmp gameInputFim
-
-tentarAtirar:
+    ; AH = scan code
+    ; Verifica ESC
+    cmp ah, 01h
+    jne @@notEscGame
+    jmp exitGame
+@@notEscGame:
+    
+    ; Verifica Espaco para atirar
+    cmp ah, 39h
+    jne @@gameInputDone
     call spawnTiro
-    jmp gameInputFim
     
-gameInputFim:
+@@gameInputDone:
     ret
 handleGameInput endp
 
 ;-------------------------------------------------
 ; handleGameOverInput: Processa a entrada do Game Over
+; Funcao: Trata entrada quando o jogo termina (Game Over ou vitoria)
+; Parametros de entrada: Nenhum
+; Parametros de saida: Pode voltar ao menu principal
 ;-------------------------------------------------
 handleGameOverInput proc
     ; Verifica Timer de Estado
@@ -286,11 +327,20 @@ handleGameOverInput proc
     ret ; Ignora input enquanto timer > 0
 
 .checkInputGO:
+    ; Usa teclaPressionada para detectar qualquer tecla nova
     mov ax, [teclaPressionada]
     cmp ax, 0
     je gameOverFim ; Se nenhuma tecla, continua
     
     ; Se qualquer tecla for pressionada, volta ao menu
+    ; Reseta flags de tecla para evitar problemas no menu
+    mov [keyUp], 0
+    mov [keyDown], 0
+    mov [keyLeft], 0
+    mov [keyRight], 0
+    mov [keySpace], 0
+    mov [keyEnter], 0
+    mov [keyEsc], 0
     mov [gameState], 0
     
 gameOverFim:
@@ -298,10 +348,12 @@ gameOverFim:
 handleGameOverInput endp
 
 
-; -----------------------------------------------------------------
-; showTransitionScreen
-; Desenha a arte ASCII da Fase correspondente
-; -----------------------------------------------------------------
+;-------------------------------------------------
+; showTransitionScreen: Mostra tela de transicao entre fases
+; Funcao: Desenha a arte ASCII da fase correspondente
+; Parametros de entrada: AL = numero da fase (1, 2 ou 3)
+; Parametros de saida: Nenhum
+;-------------------------------------------------
 showTransitionScreen proc
     push ax
     push cx
@@ -445,7 +497,11 @@ showTransitionScreen proc
 showTransitionScreen endp
 
 ;-------------------------------------------------
-; drawGameOverScreen: Desenha o texto "GAME OVER"
+;-------------------------------------------------
+; drawGameOverScreen: Desenha tela de Game Over
+; Funcao: Mostra mensagem de fim de jogo
+; Parametros de entrada: Nenhum
+; Parametros de saida: Nenhum
 ;-------------------------------------------------
 drawGameOverScreen proc
     ; X = (320 - (9 chars * 8 pixels)) / 2 = 124
@@ -459,7 +515,11 @@ drawGameOverScreen proc
 drawGameOverScreen endp
 
 ;-------------------------------------------------
-; drawStatusBar: Desenha a barra de status (Bicolor)
+;-------------------------------------------------
+; drawStatusBar: Desenha barra de status
+; Funcao: Mostra score, tempo, vidas e fase na parte superior da tela
+; Parametros de entrada: Nenhum
+; Parametros de saida: Nenhum
 ;-------------------------------------------------
 drawStatusBar proc
     push ax
@@ -522,7 +582,11 @@ drawStatusBar proc
 drawStatusBar endp
 
 ;-------------------------------------------------
-; drawWinScreen: Desenha VENCEDOR e Score (Corrigido para novas strings)
+;-------------------------------------------------
+; drawWinScreen: Desenha tela de vitoria
+; Funcao: Mostra mensagem de vitoria e pontuacao final
+; Parametros de entrada: Nenhum
+; Parametros de saida: Nenhum
 ;-------------------------------------------------
 drawWinScreen proc
     ; VENCEDOR (Verde)
@@ -551,65 +615,104 @@ drawWinScreen endp
 
 
 ;-------------------------------------------------
-; updatePlayer: Move o jogador
+;-------------------------------------------------
+; updatePlayer: Move o jogador baseado na tecla pressionada
+; Funcao: Atualiza posicao do jogador conforme teclas de movimento
+; Parametros de entrada: Nenhum
+; Parametros de saida: Atualiza playerX e playerY
 ;-------------------------------------------------
 updatePlayer proc
+    push ax
+    push bx
+    push cx
+    push dx
+    
+    ; Salva posicao anterior
     mov ax, [playerX]
     mov [playerLastX], ax
     mov ax, [playerY]
     mov [playerLastY], ax
 
-    mov ax, [teclaPressionada]
-    cmp ax, 0
-    je playerMoveFim
-    
+    ; Velocidade base
     mov bx, playerVelocidade
     
+    ; Fase 3 = velocidade maior
     cmp [currentPhase], 3
-    jne .moveNormal
+    jne @@moveStart
     add bx, 2
-.moveNormal:
+@@moveStart:
 
-    ; Cima
-    cmp ah, TECLA_CIMA
-    jne checkBaixo
-    sub [playerY], bx
-    cmp [playerY], STATUS_BAR_HEIGHT
-    jge playerMoveFim
-    mov [playerY], STATUS_BAR_HEIGHT
-    jmp playerMoveFim
-checkBaixo:
-    cmp ah, TECLA_BAIXO
-    jne checkEsquerda
-    add [playerY], bx
+    ; Pega scan code da tecla (AH)
+    mov ax, [teclaPressionada]
+    mov cl, ah          ; CL = scan code
+    
+    ; --- Movimento Cima ---
+    cmp cl, 48h
+    jne @@checkDown
+    
     mov ax, [playerY]
-    cmp ax, (200 - SPRITE_ALTURA)
-    jle playerMoveFim
-    mov [playerY], (200 - SPRITE_ALTURA)
-    jmp playerMoveFim
-checkEsquerda:
-    cmp ah, TECLA_ESQUERDA
-    jne checkDireita
-    sub [playerX], bx
-    cmp [playerX], 0
-    jge playerMoveFim
-    mov [playerX], 0
-    jmp playerMoveFim
-checkDireita:
-    cmp ah, TECLA_DIREITA
-    jne playerMoveFim
-    add [playerX], bx
+    sub ax, bx
+    cmp ax, STATUS_BAR_HEIGHT
+    jge @@salvaY
+    mov ax, STATUS_BAR_HEIGHT
+@@salvaY:
+    mov [playerY], ax
+    jmp @@playerMoveFim
+    
+@@checkDown:
+    cmp cl, 50h
+    jne @@checkLeft
+    
+    mov ax, [playerY]
+    add ax, bx
+    mov dx, 200 - SPRITE_ALTURA
+    cmp ax, dx
+    jle @@salvaY2
+    mov ax, dx
+@@salvaY2:
+    mov [playerY], ax
+    jmp @@playerMoveFim
+
+    ; --- Movimento Horizontal ---
+@@checkLeft:
+    cmp cl, 4Bh
+    jne @@checkRight
+    
     mov ax, [playerX]
-    cmp ax, (320 - SPRITE_LARGURA)
-    jle playerMoveFim
-    mov [playerX], (320 - SPRITE_LARGURA)
-playerMoveFim:
+    sub ax, bx
+    cmp ax, 0
+    jge @@salvaX
+    mov ax, 0
+@@salvaX:
+    mov [playerX], ax
+    jmp @@playerMoveFim
+    
+@@checkRight:
+    cmp cl, 4Dh
+    jne @@playerMoveFim
+    
+    mov ax, [playerX]
+    add ax, bx
+    mov dx, 320 - SPRITE_LARGURA
+    cmp ax, dx
+    jle @@salvaX2
+    mov ax, dx
+@@salvaX2:
+    mov [playerX], ax
+
+@@playerMoveFim:
+    pop dx
+    pop cx
+    pop bx
+    pop ax
     ret
 updatePlayer endp
-
-
+;-------------------------------------------------
 ;-------------------------------------------------
 ; drawPlayer: Apaga e desenha o jogador
+; Funcao: Remove sprite antigo e desenha sprite novo na nova posicao
+; Parametros de entrada: Nenhum
+; Parametros de saida: Nenhum
 ;-------------------------------------------------
 drawPlayer proc
     push [playerLastX]
@@ -626,7 +729,11 @@ drawPlayer endp
 
 
 ;-------------------------------------------------
-; drawMenuToBuffer: Desenha o menu completo no buffer
+;-------------------------------------------------
+; drawMenuToBuffer: Desenha menu completo no buffer
+; Funcao: Renderiza titulo, opcoes e elementos visuais do menu principal
+; Parametros de entrada: Nenhum
+; Parametros de saida: Nenhum
 ;-------------------------------------------------
 drawMenuToBuffer proc
     push ax
@@ -656,7 +763,7 @@ drawMenuToBuffer proc
     push offset tituloLinha4
     call drawStringToBuffer
 
-    ; --- 2. Define as cores dos bot?es ---
+    ; --- 2. Define as cores dos botoes ---
     mov al, COR_BRANCA_TXT
     mov ah, COR_VERMELHA_CLARO
     cmp [opcaoSelecionada], 0
@@ -669,7 +776,7 @@ setCorJogar:
     mov ah, COR_BRANCA_TXT
 desenharBotoes:
     
-    ; --- 3. Desenha o bot?o "Jogar" ---
+    ; --- 3. Desenha o botao "Jogar" ---
     ; Caixa: X=104, W=14 chars (112px). Centro = 160.
     push 104
     push 136
@@ -685,7 +792,7 @@ desenharBotoes:
     push offset strJogar
     call drawStringToBuffer
 
-    ; --- 4. Desenha o bot?o "Sair" ---
+    ; --- 4. Desenha o botao "Sair" ---
     push 104
     push 168
     push 14
@@ -707,7 +814,11 @@ desenharBotoes:
 drawMenuToBuffer endp
 
 ;-------------------------------------------------
-; updateAnims: Atualiza as coordenadas (Menu)
+;-------------------------------------------------
+; updateAnims: Atualiza coordenadas das animacoes do menu
+; Funcao: Salva posicoes anteriores e atualiza posicoes dos elementos animados
+; Parametros de entrada: Nenhum
+; Parametros de saida: Atualiza posicoes dos sprites animados
 ;-------------------------------------------------
 updateAnims proc
     mov ax, [naveX]
@@ -758,7 +869,11 @@ updateAnims endp
 
 
 ;-------------------------------------------------
-; drawAnims: Desenha sprites (Menu)
+;-------------------------------------------------
+; drawAnims: Desenha sprites das animacoes do menu
+; Funcao: Remove sprites antigos e desenha sprites novos nas novas posicoes
+; Parametros de entrada: Nenhum
+; Parametros de saida: Nenhum
 ;-------------------------------------------------
 drawAnims proc
     push [playerLastX]
@@ -791,7 +906,11 @@ drawAnims endp
 
 
 ;-------------------------------------------------
-; delay: Pausa a execu??o
+;-------------------------------------------------
+; delay: Pausa a execucao
+; Funcao: Cria um atraso na execucao do programa
+; Parametros de entrada: DX = tempo em microssegundos
+; Parametros de saida: Nenhum
 ;-------------------------------------------------
 delay proc
     push bp
@@ -818,18 +937,31 @@ delay endp
 ; -----------------------------------------------
 
 ;-------------------------------------------------
-; resetGameVars: Reseta o Score, Tempo e Vidas
+;-------------------------------------------------
+; resetGameVars: Reseta variaveis do jogo
+; Funcao: Inicializa todas as variaveis do jogo para valores padrao
+; Parametros de entrada: Nenhum
+; Parametros de saida: Nenhum
 ;-------------------------------------------------
 resetGameVars proc
     mov [gameTime], GAME_START_TIME
     mov [playerScore], 0
     mov [playerLives], 3
     
-    ; Reseta posi??o do jogador
+    ; Reseta posicao do jogador
     mov [playerX], 10
     mov [playerY], 100
     mov [playerLastX], 10
     mov [playerLastY], 100
+    
+    ; Reseta flags de teclas
+    mov [keyUp], 0
+    mov [keyDown], 0
+    mov [keyLeft], 0
+    mov [keyRight], 0
+    mov [keySpace], 0
+    mov [keyEsc], 0
+    mov [keyEnter], 0
     
     ; Limpa array de tiros
     mov cx, MAX_TIROS
@@ -857,7 +989,11 @@ resetGameVars proc
 resetGameVars endp
 
 ;-------------------------------------------------
-; initTimer: Pega o segundo atual e o armazena
+;-------------------------------------------------
+; initTimer: Inicializa o timer do jogo
+; Funcao: Armazena o segundo atual do sistema para controle de tempo
+; Parametros de entrada: Nenhum
+; Parametros de saida: Atualiza variavel lastSecond
 ;-------------------------------------------------
 initTimer proc
     push ax
@@ -874,7 +1010,11 @@ initTimer endp
 
 ;-------------------------------------------------
 ; updateTimer: Atualiza tempo e score por segundo
-; (Usa constantes configur?veis de pontua??o)
+;-------------------------------------------------
+; updateTimer: Atualiza o timer do jogo
+; Funcao: Decrementa o tempo restante e adiciona pontos por segundo
+; Parametros de entrada: Nenhum
+; Parametros de saida: Pode alterar gameTime, playerScore e gameState
 ;-------------------------------------------------
 updateTimer proc
     push ax
@@ -888,14 +1028,14 @@ updateTimer proc
     jmp timerFim
 
 .processaSegundo:
-    ; --- Um novo segundo come?ou ---
+    ; --- Um novo segundo comecou ---
     mov [lastSecond], dh
     
     mov ax, [gameTime]
     cmp ax, 0
     je gameOverTrigger
     
-    ; --- Se o tempo n?o acabou ---
+    ; --- Se o tempo nao acabou ---
     ; 1. Decrementa o tempo
     dec ax
     mov [gameTime], ax
@@ -927,12 +1067,12 @@ updateTimer proc
     jmp timerFim
     
 gameOverTrigger:
-    ; --- Fim do Tempo = Pr?xima Fase ---
+    ; --- Fim do Tempo = Proxima Fase ---
     inc [currentPhase]
     cmp [currentPhase], 4
     je .gameWin
     
-    ; Mostra Tela de Transi??o
+    ; Mostra Tela de Transicao
     mov al, [currentPhase]
     call showTransitionScreen
     
@@ -969,7 +1109,11 @@ timerFim:
 updateTimer endp
 
 ;-------------------------------------------------
-; updateScoreString: Converte [playerScore] para 'strScoreValue'
+;-------------------------------------------------
+; updateScoreString: Converte score para string
+; Funcao: Converte o valor numerico do score para representacao ASCII
+; Parametros de entrada: playerScore
+; Parametros de saida: Atualiza strScoreValue com string do score
 ;-------------------------------------------------
 updateScoreString proc
     push ax
@@ -979,7 +1123,7 @@ updateScoreString proc
     push si
     
     mov ax, [playerScore]
-    ; Aponta para o ?ltimo d?gito de '00000' (offset 4)
+    ; Aponta para o ultimo digito de '00000' (offset 4)
     mov si, offset strScoreValue + 4 
     mov bx, 10
     mov cx, 5 
@@ -1003,7 +1147,11 @@ digitLoop:
 updateScoreString endp
 
 ;-------------------------------------------------
-; updateTimeString: Converte [gameTime] para 'strTempoValue'
+;-------------------------------------------------
+; updateTimeString: Converte tempo para string
+; Funcao: Converte o valor numerico do tempo para representacao ASCII
+; Parametros de entrada: gameTime
+; Parametros de saida: Atualiza strTempoValue com string do tempo
 ;-------------------------------------------------
 updateTimeString proc
     push ax
@@ -1018,7 +1166,7 @@ updateTimeString proc
     add al, '0'
     add ah, '0'
     
-    ; Atualiza na string separada (?ndices 0 e 1)
+    ; Atualiza na string separada (indices 0 e 1)
     mov [strTempoValue], al     ; Dezena
     mov [strTempoValue + 1], ah ; Unidade
     
@@ -1029,8 +1177,12 @@ updateTimeString proc
 updateTimeString endp
 
 ; -----------------------------------------------------------------
+;-------------------------------------------------
 ; spawnTiro: Cria um tiro se houver slot vazio
-; -----------------------------------------------------------------
+; Funcao: Procura slot livre no array de tiros e inicializa novo tiro
+; Parametros de entrada: playerX, playerY
+; Parametros de saida: Atualiza arrays tirosX, tirosY, tirosAtivo
+;-------------------------------------------------
 spawnTiro proc
     push ax
     push bx
@@ -1053,15 +1205,15 @@ spawnTiro proc
     ; Ativa o tiro
     mov byte ptr [si + bx], 1
     
-    ; Define Posi??o X (Nave X + 29)
+    ; Define Posicao X (Nave X + 29)
     mov di, bx
-    shl di, 1           ; Multiplica ?ndice por 2 (para Word)
+    shl di, 1           ; Multiplica indice por 2 (para Word)
     
     mov ax, [playerX]
     add ax, 24          ; Sai da ponta da nave (aprox)
     mov [tirosX + di], ax
     
-    ; Define Posi??o Y (Nave Y + 6)
+    ; Define Posicao Y (Nave Y + 6)
     mov ax, [playerY]
     add ax, 6           ; Sai do meio da altura
     mov [tirosY + di], ax
@@ -1096,7 +1248,7 @@ updateTiros proc
     mov di, bx
     shl di, 1
     
-    ; Move X + 8 pixels (r?pido)
+    ; Move X + 8 pixels (rapido)
     mov ax, [tirosX + di]
     add ax, 8
     mov [tirosX + di], ax
@@ -1164,9 +1316,12 @@ drawTiros proc
     ret
 drawTiros endp
 
-; -----------------------------------------------------------------
-; spawnEnemy: Cria inimigos (CORRIGIDO: Prote??o contra Divis?o por Zero)
-; -----------------------------------------------------------------
+;-------------------------------------------------
+; spawnEnemy: Cria inimigos
+; Funcao: Gera novos inimigos em posicoes aleatorias acima do terreno
+; Parametros de entrada: Nenhum
+; Parametros de saida: Atualiza arrays enemiesX, enemiesY, enemiesActive
+;-------------------------------------------------
 spawnEnemy proc
     push ax
     push bx
@@ -1177,11 +1332,13 @@ spawnEnemy proc
 
     ; 1. Verifica Timer de Spawn
     dec [enemySpawnTimer]
-    jnz .fimSpawnEnemy
-
-    ; --- L?gica de Intervalo ---
+    jz @@continuaSpawn
+    jmp .fimSpawnEnemy      ; Jump longo para label distante
+    
+@@continuaSpawn:
+    ; --- Logica de Intervalo ---
     mov ah, 00h
-    int 1Ah     ; Retorna CX:DX (Ticks). CX ? alterado aqui!
+    int 1Ah     ; Retorna CX:DX (Ticks). CX e alterado aqui!
     
     ; Fase 1
     mov ax, dx
@@ -1227,30 +1384,122 @@ spawnEnemy proc
     ; X = 320
     mov word ptr [enemiesX + di], 320
     
-    ; --- Calcular Y Aleat?rio (FASE 3 ADJUST) ---
+    ; --- Calcular Y Aleat?rio (Respeitando Terreno) ---
     
-    ; 1. Chama o rel?gio PRIMEIRO (pois ele estraga o CX)
-    mov ah, 00h
-    int 1Ah 
+    push di             ; Salva indice do inimigo
+    push bx
     
-    mov ax, dx
-    add ax, bx  ; Varia com ?ndice
-    
-    ; 2. AGORA define o Range (CX) com seguran?a
-    mov cx, 130         ; Range Padr?o (Fase 1/2) -> Y vai at? ~155
+    ; Calcula posicao no mapa considerando scroll + X=320
+    mov ax, [terrainScroll]
+    add ax, 320         ; Posicao X do spawn
     
     cmp [currentPhase], 3
-    jne .calcDiv
-    mov cx, 75          ; Range Fase 3 -> Y vai at? ~100 (Seguro)
-
-.calcDiv:
+    je @@spawnFase3
+    
+    ; --- Fase 1 e 2: terrainMap ---
+    ; Indice = (scroll + 320) / 8
+    mov bl, 8
+    div bl              ; AL = indice
+    xor ah, ah
+    mov si, ax
+    
+    ; Wrap around no mapa (120 entradas)
+@@wrapLoop1:
+    cmp si, 120
+    jl @@idxSpawnOk
+    sub si, 120
+    jmp @@wrapLoop1
+@@idxSpawnOk:
+    
+    ; Le altura (10-30) e escala (*3)
+    mov al, [terrainMap + si]
+    xor ah, ah
+    mov bl, 3
+    mul bl              ; AX = altura em pixels (30-90)
+    
+    ; Y do topo do terreno = 200 - altura
+    mov cx, 200
+    sub cx, ax
+    jmp @@calcYEnemy
+    
+@@spawnFase3:
+    ; --- Fase 3: phase3Map ---
+    mov bl, 24
+    div bl              ; AL = indice
+    xor ah, ah
+    mov si, ax
+    
+    ; Wrap around (60 entradas)
+@@wrapLoop3:
+    cmp si, 60
+    jl @@idxSpawnOkF3
+    sub si, 60
+    jmp @@wrapLoop3
+@@idxSpawnOkF3:
+    
+    ; Le altura em blocos (1-5) e converte (*16)
+    mov al, [phase3Map + si]
+    xor ah, ah
+    shl ax, 4           ; * 16, AX = 16-80
+    
+    ; Y do topo do terreno = 200 - altura
+    mov cx, 200
+    sub cx, ax
+    
+@@calcYEnemy:
+    ; CX = Y do topo do terreno (limite inferior para o inimigo)
+    ; Inimigo precisa spawnar ACIMA desse valor
+    ; Y minimo = 25 (abaixo da status bar)
+    ; Y maximo = CX - 15 (sprite tem 13 de altura + margem)
+    
+    pop bx
+    pop di              ; Restaura indice do inimigo
+    
+    ; Ajusta CX para ser o Y maximo do inimigo (acima do terreno)
+    sub cx, 15          ; CX = limite superior do terreno - margem
+    
+    ; Se CX < 40, o terreno esta muito alto, spawn fixo no topo
+    cmp cx, 40
+    jg @@terrainOk
+    mov cx, 40
+@@terrainOk:
+    
+    ; Range = CX - 25 (Y maximo - Y minimo)
+    mov ax, cx
+    sub ax, 25          ; AX = range disponivel
+    
+    ; Se range < 10, usa spawn fixo
+    cmp ax, 10
+    jg @@rangeOk
+    mov dx, 30          ; Y fixo se nao tem espaco
+    jmp @@setYEnemy
+    
+@@rangeOk:
+    ; Gera Y aleatorio
+    push cx             ; Salva Y maximo
+    push ax             ; Salva range
+    
+    ; Obtem valor do relogio
+    mov ah, 00h
+    int 1Ah             ; DX = ticks
+    
+    ; Usa ticks + indice + scroll para aleatoriedade
+    mov ax, dx
+    add ax, bx          ; Adiciona indice (0-4)
+    shl ax, 3           ; Multiplica por 8 para mais variacao
+    add ax, [terrainScroll]
+    
+    pop cx              ; CX = range
     xor dx, dx
-    div cx              ; Agora CX vale 130 ou 75 (Seguro)
+    div cx              ; DX = resto (0..range-1)
     
-    add dx, 25          ; Offset Base Y (M?nimo 25)
+    pop cx              ; CX = Y maximo
+    
+    ; Y final = 25 + resto (sempre acima do terreno)
+    add dx, 25
+    
+@@setYEnemy:
     mov [enemiesY + di], dx
-    
-    mov [tempWord], dx
 
 .fimSpawnEnemy:
     pop di
@@ -1263,8 +1512,12 @@ spawnEnemy proc
 spawnEnemy endp
 
 ; -----------------------------------------------------------------
+;-------------------------------------------------
 ; updateEnemies: Move inimigos para a esquerda
-; -----------------------------------------------------------------
+; Funcao: Atualiza posicao de todos os inimigos ativos movendo-os horizontalmente
+; Parametros de entrada: Nenhum
+; Parametros de saida: Atualiza arrays enemiesX e enemiesActive
+;-------------------------------------------------
 updateEnemies proc
     push ax
     push bx
@@ -1316,9 +1569,12 @@ updateEnemies proc
     ret
 updateEnemies endp
 
-; -----------------------------------------------------------------
+;-------------------------------------------------
 ; drawEnemies: Desenha inimigos ativos
-; -----------------------------------------------------------------
+; Funcao: Renderiza todos os inimigos ativos no buffer de video
+; Parametros de entrada: Nenhum
+; Parametros de saida: Inimigos desenhados no buffer
+;-------------------------------------------------
 drawEnemies proc
     push ax
     push bx
@@ -1366,9 +1622,12 @@ drawEnemies proc
     ret
 drawEnemies endp
 
-; -----------------------------------------------------------------
-; checkCollisions: Verifica colisoes (Nave-Inimigo, Tiro-Inimigo)
-; -----------------------------------------------------------------
+;-------------------------------------------------
+; checkCollisions: Verifica colisoes
+; Funcao: Detecta colisoes entre nave-inimigo e tiro-inimigo
+; Parametros de entrada: Nenhum
+; Parametros de saida: Pode atualizar playerLives, playerScore, arrays de tiros e inimigos
+;-------------------------------------------------
 checkCollisions proc
     push ax
     push bx
@@ -1457,7 +1716,7 @@ checkCollisions proc
 .loopTiro:
     cmp [tirosAtivo + bx], 0
     jne .processTiro
-    jmp .proxTiro
+    jmp .proxTiroCheck
 .processTiro:
     
     ; Pega coords do Tiro
@@ -1540,14 +1799,14 @@ checkCollisions proc
     call updateScoreString
     
 .meteoroHit:
-    ; 4. Remove Tiro
+    ; 4. Remove Tiro (mesmo em meteoro, o tiro some)
     pop cx ; Restaura contador Tiros
     pop bx ; Restaura index Tiro
     
     mov [tirosAtivo + bx], 0
     
-    push cx ; Salva contador Tiros de novo para o jump
-    jmp .proxTiro ; Vai pro proximo tiro (esse ja morreu)
+    ; Continua para o proximo tiro
+    jmp .proxTiroCheck
 
 .proxEnemyTiro:
     inc bx
@@ -1560,7 +1819,7 @@ checkCollisions proc
     pop cx ; Restaura contador Tiros
     pop bx ; Restaura index Tiro
 
-.proxTiro:
+.proxTiroCheck:
     inc bx
     dec cx
     jz .fimLoopTiro
@@ -1660,6 +1919,9 @@ drawRectToBuffer endp
 
 ;-------------------------------------------------
 ; updateTerrainScroll: Atualiza o offset do terreno
+; Funcao: Move o terreno para criar efeito de scrolling horizontal
+; Parametros de entrada: Nenhum
+; Parametros de saida: Atualiza variavel terrainScroll
 ;-------------------------------------------------
 updateTerrainScroll proc
     mov ax, [terrainScroll]
@@ -1674,9 +1936,122 @@ updateTerrainScroll proc
     ret
 updateTerrainScroll endp
 
+;-------------------------------------------------
+; checkTerrainCollision: Verifica colisao da nave com o terreno
+; Funcao: Detecta se a nave colidiu com o terreno e aplica penalidade
+; Parametros de entrada: playerX, playerY, terrainScroll
+; Parametros de saida: Pode atualizar playerLives e gameState
+;-------------------------------------------------
+checkTerrainCollision proc
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+    
+    ; --- Calcula a altura do terreno na posicao da nave ---
+    ; Posicao X do "pe" da nave = playerX + SPRITE_LARGURA/2
+    mov ax, [playerX]
+    add ax, 14              ; Centro da nave
+    
+    ; Adiciona o scroll para saber qual coluna do mapa
+    add ax, [terrainScroll]
+    
+    ; --- Fase 3: Usa phase3Map ---
+    cmp [currentPhase], 3
+    je @@checkFase3Terrain
+    
+    ; --- Fase 1 e 2: Usa terrainMap ---
+    ; Indice no mapa = (X total) / 8 (cada coluna tem 8px de largura no mapa)
+    mov bl, 8
+    div bl              ; AL = indice
+    xor ah, ah
+    mov si, ax
+    
+    ; Limita ao tamanho do mapa (120 entradas)
+    cmp si, 120
+    jl @@idxOkTerrain
+    sub si, 120
+@@idxOkTerrain:
+    
+    ; Le a altura do terreno (10-30)
+    mov al, [terrainMap + si]
+    xor ah, ah
+    
+    ; Altura em pixels = altura * 3 (escala)
+    mov bl, 3
+    mul bl
+    
+    ; Y do topo do terreno = 200 - altura_pixels
+    mov bx, 200
+    sub bx, ax          ; BX = Y do topo do terreno
+    
+    jmp @@checkColisaoTerrain
+    
+@@checkFase3Terrain:
+    ; Indice no mapa = (X total) / 24
+    mov bl, 24
+    div bl              ; AL = indice
+    xor ah, ah
+    mov si, ax
+    
+    ; Limita ao tamanho do mapa (60 entradas)
+    cmp si, 60
+    jl @@idxOkF3Terrain
+    sub si, 60
+@@idxOkF3Terrain:
+    
+    ; Le a altura em blocos (1-5)
+    mov al, [phase3Map + si]
+    xor ah, ah
+    
+    ; Altura em pixels = blocos * 16
+    shl ax, 4           ; * 16
+    
+    ; Y do topo do terreno = 200 - altura_pixels
+    mov bx, 200
+    sub bx, ax          ; BX = Y do topo do terreno
+    
+@@checkColisaoTerrain:
+    ; --- Verifica se a nave colidiu ---
+    ; Y do "pe" da nave = playerY + SPRITE_ALTURA
+    mov ax, [playerY]
+    add ax, SPRITE_ALTURA
+    
+    ; Se playerY + altura > Y_topo_terreno, colidiu
+    cmp ax, bx
+    jl @@semColisaoTerrain
+    
+    ; --- COLISAO COM TERRENO ---
+    dec [playerLives]
+    cmp [playerLives], 0
+    jl @@gameOverTerrain
+    
+    ; Reseta posicao
+    mov [playerX], 10
+    mov [playerY], 100
+    jmp @@semColisaoTerrain
+    
+@@gameOverTerrain:
+    mov [gameState], 2
+    mov [stateTimer], 50
+    
+@@semColisaoTerrain:
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+checkTerrainCollision endp
+
 ; -----------------------------------------------------------------
-; drawTerrain: Terreno Variado (Fase 3 com 60 Colunas e Prote??o)
-; -----------------------------------------------------------------
+;-------------------------------------------------
+; drawTerrain: Desenha terreno variado
+; Funcao: Renderiza o terreno com scrolling baseado na fase atual
+; Parametros de entrada: currentPhase, terrainScroll
+; Parametros de saida: Terreno desenhado no buffer
+;-------------------------------------------------
 drawTerrain proc
     push ax
     push bx
@@ -1689,21 +2064,77 @@ drawTerrain proc
     cmp [currentPhase], 3
     je .drawFase3Terrain
     
-    ; --- FASE 1 e 2: Terreno Reto ---
+    ; --- FASE 1 e 2: Terreno com Montanhas ---
     cmp [currentPhase], 2
     je .corFase2
-    mov bx, 3       ; Fase 1: Ciano
-    jmp .desenhaReto
+    mov [tempWord], 3       ; Fase 1: Ciano
+    jmp .desenhaMontanhas
 .corFase2:
-    mov bx, 4       ; Fase 2: Vermelho
+    mov [tempWord], 4       ; Fase 2: Vermelho
 
-.desenhaReto:
-    push 0          ; X
-    push 180        ; Y
-    push 320        ; Largura
-    push 20         ; Altura
-    push bx         ; Cor
+.desenhaMontanhas:
+    ; Desenha 42 colunas de 8px cada (336px, cobre a tela + margem)
+    mov cx, 42
+    
+    ; X inicial = -(terrainScroll % 8)
+    mov ax, [terrainScroll]
+    and ax, 7           ; Mod 8
+    neg ax              ; X negativo para suavidade
+    
+    ; Indice inicial = terrainScroll / 8
+    push ax             ; Salva X
+    mov ax, [terrainScroll]
+    shr ax, 3           ; Div 8
+    mov bx, ax          ; BX = indice inicial
+    pop ax              ; Recupera X
+    
+.loopMontanha:
+    push cx
+    push ax             ; Salva X
+    push bx             ; Salva Index
+    
+    ; Limita indice ao tamanho do mapa (120)
+    cmp bx, 120
+    jl .idxMontOk
+    sub bx, 120
+.idxMontOk:
+    
+    ; Le altura do mapa (10-30)
+    push ax
+    mov si, bx
+    mov al, [terrainMap + si]
+    xor ah, ah
+    
+    ; Altura em pixels = valor * 3
+    mov bl, 3
+    mul bl
+    mov dx, ax          ; DX = altura em pixels
+    pop ax
+    
+    ; Y = 200 - altura
+    push ax
+    mov ax, 200
+    sub ax, dx
+    mov si, ax          ; SI = Y do topo
+    pop ax
+    
+    ; Desenha coluna
+    push ax             ; X
+    push si             ; Y
+    push 8              ; W (8 pixels)
+    push dx             ; H (altura)
+    push [tempWord]     ; Cor
     call drawRectToBuffer
+    
+    pop bx              ; Recupera Index
+    inc bx              ; Proximo indice
+    
+    pop ax              ; Recupera X
+    add ax, 8           ; Avanca 8 pixels
+    
+    pop cx
+    loop .loopMontanha
+    
     jmp .fimTerrain
 
     ; --- FASE 3: Plataformas ---

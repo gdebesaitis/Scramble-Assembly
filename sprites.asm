@@ -8,8 +8,8 @@ SPRITE_LARGURA EQU 29
 SPRITE_ALTURA  EQU 13
 SPRITE_TAMANHO EQU SPRITE_LARGURA * SPRITE_ALTURA ; 377 bytes
 
-; --- Cores (para refer?ncia) ---
-COR_PRETA   EQU 0   ; Transpar?ncia
+; --- Cores (para referencia) ---
+COR_PRETA   EQU 0   ; Transparencia
 COR_BRANCA  EQU 15  ; Nave Aliada (Corpo)
 COR_AMARELA EQU 14  ; Nave Aliada (Chama)
 COR_VERDE   EQU 10  ; Alien
@@ -71,7 +71,7 @@ meteoroSprite db 0,0,0,0,0,0,0,8,8,6,6,6,6,12,12,12,12,12,0,0,0,0,0,0,0,0,0,0,0
               db 0,0,0,0,0,0,0,0,0,12,12,12,12,12,12,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 
 ; ============================================
-; --- Sprite Alien?gena ---
+; --- Sprite Aliengen ---
 ; ============================================
 alienSprite db 0,0,0,0,0,0,0,0,8,8,8,8,8,8,8,8,8,8,8,8,8,0,0,0,0,0,0,0,0
             db 0,0,0,0,0,0,0,8,3,3,3,13,3,3,3,3,3,13,3,3,3,8,0,0,0,0,0,0,0
@@ -89,7 +89,7 @@ alienSprite db 0,0,0,0,0,0,0,0,8,8,8,8,8,8,8,8,8,8,8,8,8,0,0,0,0,0,0,0,0
 
 ; ============================================
 ; --- Mapa de Terreno (Fase 1 e 2) ---
-; Altura M?nima 10, M?xima 30
+; Altura Minima 10, Maxima 30
 ; ============================================
 terrainMap  db 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 25, 24, 23, 22, 21, 20
             db 19, 18, 17, 16, 15, 15, 16, 19, 22, 24, 26, 28, 29, 30, 29, 28, 26, 24, 22, 20

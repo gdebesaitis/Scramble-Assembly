@@ -1,10 +1,13 @@
 ; ============================================
 ; ARQUIVO: graphics.asm
-; Rotinas de v?deo e desenho (com Sprite Gen?rico)
+; Rotinas de video e desenho (com Sprite Generico)
 ; ============================================
 
 ;-------------------------------------------------
-; setupVideoMode: Configura o modo gr?fico 13h
+; setupVideoMode: Configura o modo grafico 13h
+; Funcao: Inicializa modo VGA 320x200x256 cores
+; Parametros de entrada: Nenhum
+; Parametros de saida: Modo de video alterado
 ;-------------------------------------------------
 setupVideoMode proc
     mov ax, 0013h
@@ -13,7 +16,10 @@ setupVideoMode proc
 setupVideoMode endp
 
 ;-------------------------------------------------
-; clearBuffer: Limpa o buffer de v?deo
+; clearBuffer: Limpa o buffer de video
+; Funcao: Preenche o buffer com zeros (cor preta)
+; Parametros de entrada: Nenhum
+; Parametros de saida: Buffer limpo
 ;-------------------------------------------------
 clearBuffer proc
     push ax
@@ -30,7 +36,10 @@ clearBuffer proc
 clearBuffer endp
 
 ;-------------------------------------------------
-; copyBufferToVideo: Copia o buffer para a tela
+; copyBufferToVideo: Copia buffer para tela
+; Funcao: Transfere conteudo do buffer para memoria de video
+; Parametros de entrada: Nenhum
+; Parametros de saida: Tela atualizada
 ;-------------------------------------------------
 copyBufferToVideo proc
     push ds
@@ -61,12 +70,10 @@ copyBufferToVideo proc
 copyBufferToVideo endp
 
 ;-------------------------------------------------
-; drawGenericSprite: Desenha sprite (com transpar?ncia) NO BUFFER
-; [bp+12] = PUSH X
-; [bp+10] = PUSH Y
-; [bp+8]  = PUSH offset
-; [bp+6]  = PUSH Largura
-; [bp+4]  = PUSH Altura
+; drawGenericSprite: Desenha sprite com transparencia
+; Funcao: Renderiza sprite no buffer com suporte a clipping horizontal
+; Parametros de entrada: [bp+12]=X, [bp+10]=Y, [bp+8]=offset, [bp+6]=largura, [bp+4]=altura
+; Parametros de saida: Sprite desenhado no buffer
 ;-------------------------------------------------
 drawGenericSprite proc
     push bp
@@ -113,9 +120,9 @@ checkLeftClip:
     ; Ajusta SI (Offset do Sprite) para pular os pixels
     mov bx, ax
     neg bx ; bx = 5 (pixels a pular)
-    add si, bx ; Avan?a ponteiro do sprite
+    add si, bx ; Avanca ponteiro do sprite
     
-    mov ax, 0 ; Novo X na tela ? 0
+    mov ax, 0 ; Novo X na tela = 0
     
 calcAddress:
     ; Calcula DI = (Y * 320) + X
@@ -164,16 +171,14 @@ fimDrawGeneric:
     pop bx
     pop ax
     pop bp
-    ret 10 ; Limpa 5 par?metros (10 bytes)
+    ret 10 ; Limpa 5 parametros (10 bytes)
 drawGenericSprite endp
 
 ;-------------------------------------------------
-; eraseGenericSprite: Apaga sprite NO BUFFER
-; [bp+12] = PUSH X
-; [bp+10] = PUSH Y
-; [bp+8]  = PUSH offset
-; [bp+6]  = PUSH Largura
-; [bp+4]  = PUSH Altura
+; eraseGenericSprite: Apaga sprite do buffer
+; Funcao: Remove sprite desenhando sprite em branco na posicao
+; Parametros de entrada: [bp+12]=X, [bp+10]=Y, [bp+8]=offset, [bp+6]=largura, [bp+4]=altura
+; Parametros de saida: Sprite removido do buffer
 ;-------------------------------------------------
 eraseGenericSprite proc
     push bp
@@ -215,15 +220,15 @@ loopPixelEraseGen:
     pop bx
     pop ax
     pop bp
-    ret 10 ; Limpa 5 par?metros (10 bytes)
+    ret 10 ; Limpa 5 parametros (10 bytes)
 eraseGenericSprite endp
 
 
 ;-------------------------------------------------
-; drawSprite: Atalho para drawGenericSprite (29x13)
-; [bp+8]  = PUSH X
-; [bp+6]  = PUSH Y
-; [bp+4]  = PUSH offset
+; drawSprite: Atalho para drawGenericSprite
+; Funcao: Desenha sprite padrao (29x13) com transparencia
+; Parametros de entrada: [bp+8]=X, [bp+6]=Y, [bp+4]=offset
+; Parametros de saida: Sprite desenhado no buffer
 ;-------------------------------------------------
 drawSprite proc
     push bp
@@ -241,10 +246,10 @@ drawSprite proc
 drawSprite endp
 
 ;-------------------------------------------------
-; eraseSprite: Atalho para eraseGenericSprite (29x13)
-; [bp+8]  = PUSH X
-; [bp+6]  = PUSH Y
-; [bp+4]  = PUSH offset
+; eraseSprite: Atalho para eraseGenericSprite
+; Funcao: Remove sprite padrao (29x13) do buffer
+; Parametros de entrada: [bp+8]=X, [bp+6]=Y, [bp+4]=offset
+; Parametros de saida: Sprite removido do buffer
 ;-------------------------------------------------
 eraseSprite proc
     push bp
@@ -263,10 +268,13 @@ eraseSprite endp
 
 
 ; (Rotinas de Fonte: drawCharToBuffer, drawStringToBuffer, drawBoxToBuffer)
-; ... (Cole o resto do seu graphics.asm existente aqui, sem altera??es) ...
+; ... (Cole o resto do seu graphics.asm existente aqui, sem alteracoes) ...
 
 ;-------------------------------------------------
-; drawCharToBuffer: Desenha um caractere 8x8 no buffer
+; drawCharToBuffer: Desenha caractere 8x8 no buffer
+; Funcao: Renderiza um caractere da fonte IBM BIOS no buffer
+; Parametros de entrada: [bp+10]=X, [bp+8]=Y, [bp+6]=cor, [bp+4]=caractere
+; Parametros de saida: Caractere desenhado no buffer
 ;-------------------------------------------------
 drawCharToBuffer proc
     push bp
@@ -330,6 +338,9 @@ drawCharToBuffer endp
 
 ;-------------------------------------------------
 ; drawStringToBuffer: Desenha string no buffer
+; Funcao: Renderiza uma string de caracteres no buffer
+; Parametros de entrada: [bp+10]=X, [bp+8]=Y, [bp+6]=cor, [bp+4]=offset string
+; Parametros de saida: String desenhada no buffer
 ;-------------------------------------------------
 drawStringToBuffer proc
     push bp
@@ -370,6 +381,9 @@ drawStringToBuffer endp
 
 ;-------------------------------------------------
 ; drawBoxToBuffer: Desenha caixa de texto no buffer
+; Funcao: Renderiza uma caixa retangular com bordas no buffer
+; Parametros de entrada: [bp+12]=X, [bp+10]=Y, [bp+8]=largura, [bp+6]=altura, [bp+4]=cor
+; Parametros de saida: Caixa desenhada no buffer
 ;-------------------------------------------------
 drawBoxToBuffer proc
     push bp
