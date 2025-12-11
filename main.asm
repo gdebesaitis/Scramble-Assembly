@@ -209,30 +209,30 @@ main endp
 ; --- Rotinas de Logica (DS = @data, ES = BUFFER_SEG) ---
 
 ;-------------------------------------------------
-; checkInput: Le o teclado usando BIOS (simples)
-; Funcao: Verifica e le teclas pressionadas do buffer do teclado
-; Parametros de entrada: Nenhum
-; Parametros de saida: Atualiza variavel teclaPressionada (AX = scan code + ASCII)
+; checkInput: L? E LIMPA O BUFFER DE TECLADO
+; (Corrige o lag/ghosting de movimento)
 ;-------------------------------------------------
 checkInput proc
-    push ax
-    
+    ; 1. Zera a tecla atual (assume nenhuma apertada)
     mov [teclaPressionada], 0
-    
-    ; Verifica se ha tecla no buffer
+
+.drainLoop:
+    ; Verifica se tem tecla no buffer (AH=01h)
     mov ah, 01h
     int 16h
-    jz @@noKey
-    
-    ; Le a tecla (remove do buffer)
+    jz .fimCheck    ; Se ZeroFlag=1, buffer vazio, terminamos
+
+    ; Tem tecla! Vamos ler e retir?-la da fila (AH=00h)
     mov ah, 00h
     int 16h
     
-    ; AH = scan code, AL = ASCII
+    ; Salva essa tecla como a "mais recente"
     mov [teclaPressionada], ax
     
-@@noKey:
-    pop ax
+    ; Volta para ver se tem mais teclas acumuladas (ignora as antigas)
+    jmp .drainLoop
+
+.fimCheck:
     ret
 checkInput endp
 
