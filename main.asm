@@ -28,7 +28,7 @@ BUFFER_SEG ENDS
 
     ; --- constantes do jogo ---
     STATUS_BAR_HEIGHT EQU 16
-    GAME_START_TIME   EQU 30 ; (tempo em segundos)
+    GAME_START_TIME   EQU 3 ; (tempo em segundos)
     INITIAL_LIVES     EQU 3
 
     ; --- pontuacao por fase ---
@@ -505,13 +505,93 @@ showTransitionScreen endp
 ; parametros de saida: nenhum
 ;-------------------------------------------------
 drawGameOverScreen proc
-    ; x = (320 - (9 chars * 8 pixels)) / 2 = 124
-    ; y = (200 - 8 pixels) / 2 = 96
-    push 124 ; x
-    push 96  ; y
+    push ax
+    push bx
+    
+    ; --- Bloco "GAME" (Vermelho) ---
+    ; Largura 27 chars = 216px. X = (320-216)/2 = 52
+    ; Y Inicial = 60
+    
+    mov bx, 52          ; X
+    mov ax, 60          ; Y
+    
+    push bx
+    push ax
     push COR_VERMELHA_CLARO
-    push offset strGameOver
+    push offset gameOverL1
     call drawStringToBuffer
+    
+    add ax, 8
+    push bx
+    push ax
+    push COR_VERMELHA_CLARO
+    push offset gameOverL2
+    call drawStringToBuffer
+    
+    add ax, 8
+    push bx
+    push ax
+    push COR_VERMELHA_CLARO
+    push offset gameOverL3
+    call drawStringToBuffer
+    
+    add ax, 8
+    push bx
+    push ax
+    push COR_VERMELHA_CLARO
+    push offset gameOverL4
+    call drawStringToBuffer
+    
+    add ax, 8
+    push bx
+    push ax
+    push COR_VERMELHA_CLARO
+    push offset gameOverL5
+    call drawStringToBuffer
+    
+    ; --- Bloco "OVER" (Vermelho) ---
+    ; Largura 28 chars = 224px. X = (320-224)/2 = 48
+    ; Y continua descendo (+16px de espaco) -> Y=110
+    
+    mov bx, 48          ; X novo para centralizar
+    mov ax, 110         ; Y com espaco
+    
+    push bx
+    push ax
+    push COR_VERMELHA_CLARO
+    push offset gameOverL6
+    call drawStringToBuffer
+    
+    add ax, 8
+    push bx
+    push ax
+    push COR_VERMELHA_CLARO
+    push offset gameOverL7
+    call drawStringToBuffer
+    
+    add ax, 8
+    push bx
+    push ax
+    push COR_VERMELHA_CLARO
+    push offset gameOverL8
+    call drawStringToBuffer
+    
+    add ax, 8
+    push bx
+    push ax
+    push COR_VERMELHA_CLARO
+    push offset gameOverL9
+    call drawStringToBuffer
+    
+    add ax, 8
+    push bx
+    push ax
+    push COR_VERMELHA_CLARO
+    push offset gameOverL10
+    call drawStringToBuffer
+    
+    pop bx
+    pop ax
     ret
 drawGameOverScreen endp
 
@@ -590,30 +670,115 @@ drawStatusBar endp
 ; parametros de saida: nenhum
 ;-------------------------------------------------
 drawWinScreen proc
-    ; vencedor (verde)
-    push 124 ; x
-    push 96  ; y
+    push ax
+    push bx
+    
+    ; --- Bloco 1: "VENCE" (Verde) ---
+    ; Largura 33 chars = 264px. X = (320-264)/2 = 28
+    ; Y Inicial = 50
+    
+    mov bx, 28          ; X
+    mov ax, 50          ; Y
+    
+    push bx
+    push ax
     push COR_VERDE_CLARO
-    push offset strVencedor
+    push offset venceL1
     call drawStringToBuffer
     
-    ; label score (branco)
-    push 116 ; x
-    push 110 ; y
+    add ax, 8
+    push bx
+    push ax
+    push COR_VERDE_CLARO
+    push offset venceL2
+    call drawStringToBuffer
+    
+    add ax, 8
+    push bx
+    push ax
+    push COR_VERDE_CLARO
+    push offset venceL3
+    call drawStringToBuffer
+    
+    add ax, 8
+    push bx
+    push ax
+    push COR_VERDE_CLARO
+    push offset venceL4
+    call drawStringToBuffer
+    
+    add ax, 8
+    push bx
+    push ax
+    push COR_VERDE_CLARO
+    push offset venceL5
+    call drawStringToBuffer
+    
+    ; --- Bloco 2: "DOR!" (Verde) ---
+    ; Largura 21 chars = 168px. X = (320-168)/2 = 76
+    ; Y = 50 + 40 (altura do bloco anterior) + 10 (espaco) = 100
+    
+    mov bx, 76          ; X
+    mov ax, 100         ; Y
+    
+    push bx
+    push ax
+    push COR_VERDE_CLARO
+    push offset dorL1
+    call drawStringToBuffer
+    
+    add ax, 8
+    push bx
+    push ax
+    push COR_VERDE_CLARO
+    push offset dorL2
+    call drawStringToBuffer
+    
+    add ax, 8
+    push bx
+    push ax
+    push COR_VERDE_CLARO
+    push offset dorL3
+    call drawStringToBuffer
+    
+    add ax, 8
+    push bx
+    push ax
+    push COR_VERDE_CLARO
+    push offset dorL4
+    call drawStringToBuffer
+    
+    add ax, 8
+    push bx
+    push ax
+    push COR_VERDE_CLARO
+    push offset dorL5
+    call drawStringToBuffer
+    
+    ; --- Score Final (Branco) ---
+    ; Abaixo da arte. Y = 100 + 40 + 10 = 150
+    
+    ; Label "SCORE: " (Branco)
+    ; Largura total texto ~ 12 chars = 96px. X = (320-96)/2 = 112
+    
+    push 112            ; X
+    push 150            ; Y
     push COR_BRANCA_TXT
     push offset strScoreLabel
     call drawStringToBuffer
     
-    ; valor score (branco)
-    push 172 ; x (116 + 56)
-    push 110 ; y
+    ; Valor "00000" (Branco)
+    ; X = 112 + (7 chars * 8) = 168
+    push 168            ; X
+    push 150            ; Y
     push COR_BRANCA_TXT
     push offset strScoreValue
     call drawStringToBuffer
     
+    pop bx
+    pop ax
     ret
 drawWinScreen endp
-
 
 ;-------------------------------------------------
 ;-------------------------------------------------

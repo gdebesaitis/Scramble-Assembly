@@ -46,8 +46,32 @@ fase3Linha4 db '|  _| / ___ \ ___) | |___   ___) |', 0
 fase3Linha5 db '|_|  /_/   \_\____/|_____| |____/ ', 0
 fase3Linha6 db '                                  ', 0
 
-strGameOver db 'GAME OVER', 0
-strVencedor db 'VENCEDOR!', 0
+; --- GAME OVER ---
+gameOverL1  db '  ____   _    __  __ _____ ', 0
+gameOverL2  db ' / ___| / \  |  \/  | ____|', 0
+gameOverL3  db '| |  _ / _ \ | |\/| |  _|  ', 0
+gameOverL4  db '| |_| / ___ \| |  | | |___ ', 0
+gameOverL5  db ' \___/_/   \_\_|  |_|_____|', 0
+
+gameOverL6      db '  ___ __     __ _____ ____  ', 0
+gameOverL7      db ' / _ \\ \   / /| ____|  _ \ ', 0
+gameOverL8      db '| | | |\ \ / / |  _| | |_) |', 0
+gameOverL9      db '| |_| | \ V /  | |___|  _ < ', 0
+gameOverL10     db ' \___/   \_/   |_____|_| \_\', 0
+
+; --- VENCEDOR!  ---
+
+venceL1 db '__     _______ _   _  ____ _____ ', 0
+venceL2 db '\ \   / / ____| \ | |/ ___| ____|', 0
+venceL3 db ' \ \ / /|  _| |  \| | |   |  _|  ', 0
+venceL4 db '  \ V / | |___| |\  | |___| |___ ', 0
+venceL5 db '   \_/  |_____|_| \_|\____|_____|', 0
+
+dorL1 db ' ____   ___  ____  _ ', 0
+dorL2 db '|  _ \ / _ \|  _ \| |', 0
+dorL3 db '| | | | | | | |_) | |', 0
+dorL4 db '| |_| | |_| |  _ <|_|', 0
+dorL5 db '|____/ \___/|_| \_(_)', 0
 
 strScoreLabel db 'SCORE: ', 0
 strScoreValue db '00000', 0
